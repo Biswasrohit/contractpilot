@@ -8,11 +8,12 @@ Called TWICE in the pipeline:
 
 import os
 import json
+from pathlib import Path
 
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).parent / ".env")
 
 k2 = AsyncOpenAI(
     api_key=os.environ.get("VULTR_INFERENCE_API_KEY", ""),

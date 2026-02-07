@@ -5,8 +5,6 @@ Generates a styled risk analysis PDF from review + clause data.
 
 import html
 
-from weasyprint import HTML
-
 
 def _risk_color(score: int) -> str:
     """Return a color hex based on risk score (0=green, 100=red)."""
@@ -148,5 +146,7 @@ def generate_pdf_report(review: dict, clauses: list[dict]) -> bytes:
     </div>
 </body>
 </html>"""
+
+    from weasyprint import HTML  # lazy import — requires pango/glib system libs
 
     return HTML(string=report_html).write_pdf()

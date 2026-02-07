@@ -7,10 +7,10 @@ Orchestrates the full 12-step pipeline:
 """
 
 import os
+from pathlib import Path
 
 from convex import ConvexClient
-from dedalus import AsyncDedalus
-from dedalus.runner import DedalusRunner
+from dedalus_labs import AsyncDedalus, DedalusRunner
 from dotenv import load_dotenv
 
 from prompts import AGENT_SYSTEM_PROMPT
@@ -24,7 +24,7 @@ from tools import (
 )
 from k2_client import analyze_clause_risk
 
-load_dotenv()
+load_dotenv(Path(__file__).parent / ".env")
 
 # Dedalus client
 client = AsyncDedalus(api_key=os.environ.get("DEDALUS_API_KEY", ""))

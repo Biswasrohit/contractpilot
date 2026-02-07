@@ -5,11 +5,12 @@ Uses kimi-k2-instruct model for RAG queries.
 """
 
 import os
+from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).parent / ".env")
 
 VULTR_BASE = "https://api.vultrinference.com/v1"
 VULTR_API_KEY = os.environ.get("VULTR_INFERENCE_API_KEY", "")

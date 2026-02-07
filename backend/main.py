@@ -1,5 +1,6 @@
 import asyncio
 import os
+from pathlib import Path
 
 import fitz  # pymupdf
 from convex import ConvexClient
@@ -11,7 +12,8 @@ from fastapi.responses import Response
 from agent import run_contract_analysis
 from report_generator import generate_pdf_report
 
-load_dotenv()
+# Load .env from the backend directory regardless of cwd
+load_dotenv(Path(__file__).parent / ".env")
 
 app = FastAPI(title="ContractPilot Backend")
 
