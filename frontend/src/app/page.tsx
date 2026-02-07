@@ -22,6 +22,11 @@ export default function Home() {
         body: formData,
       });
 
+      if (res.status === 402) {
+        router.push("/billing");
+        return;
+      }
+
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Upload failed");

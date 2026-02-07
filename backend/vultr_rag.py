@@ -1,7 +1,7 @@
 """Vultr RAG client — legal knowledge base queries.
 
-Queries the Vultr vector store seeded with CUAD + Legal Clauses data.
-Uses llama-3.3-70b (RAG-supported model), NOT kimi-k2-instruct.
+Queries the Vultr vector store seeded with curated legal reference data.
+Uses kimi-k2-instruct model for RAG queries.
 """
 
 import os
@@ -40,7 +40,7 @@ async def query_legal_knowledge(clause_text: str, clause_type: str) -> str:
                 headers=HEADERS,
                 json={
                     "collection": COLLECTION_ID,
-                    "model": "llama-3.3-70b-instruct-fp8",
+                    "model": "kimi-k2-instruct",
                     "messages": [
                         {
                             "role": "user",
