@@ -86,7 +86,7 @@ export default function PDFViewer({
   return (
     <div
       ref={containerRef}
-      className={`h-full bg-gray-100 p-4 ${
+      className={`h-full bg-gray-100 dark:bg-gray-800 p-4 ${
         scrollLocked ? "overflow-hidden relative" : "overflow-y-auto"
       }`}
     >

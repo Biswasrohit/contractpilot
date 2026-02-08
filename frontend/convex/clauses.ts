@@ -34,6 +34,8 @@ export const addClause = mutation({
     rects: v.optional(v.string()),
     pageWidth: v.optional(v.number()),
     pageHeight: v.optional(v.number()),
+    parentHeading: v.optional(v.string()),
+    subClauseIndex: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("clauses", args);
