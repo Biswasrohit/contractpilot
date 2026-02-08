@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from exa_search import search_legal_context
 from k2_client import analyze_clause_risk
 from prompts import AGENT_SYSTEM_PROMPT
-from tools import categorize_risk, classify_contract, extract_clauses
+from tools import categorize_risk, classify_contract, extract_clause_positions, extract_clauses
 from vultr_rag import query_legal_knowledge
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -32,6 +32,9 @@ client = AsyncDedalus(
 
 # Convex client for writing results
 convex = ConvexClient(os.environ.get("CONVEX_URL", ""))
+
+
+CLAUSE_CONCURRENCY = 4  # Max concurrent K2+RAG calls
 
 
 async def _analyze_one_clause(
@@ -84,6 +87,47 @@ async def _analyze_one_clause(
         "suggestion": k2_result.get("suggestion", ""),
         "k2Reasoning": k2_result.get("reasoning", ""),
     }
+
+
+async def _analyze_one_clause_throttled(
+    sem: asyncio.Semaphore,
+    clause: dict,
+    contract_type: str,
+    index: int,
+    position: dict | None,
+    review_id: str,
+    counter: dict,
+    total: int,
+) -> dict:
+    """Analyze a clause with semaphore throttling and incremental save."""
+    async with sem:
+        result = await _analyze_one_clause(clause, contract_type, index)
+
+    # Merge position data
+    if position:
+        result["pageNumber"] = position.get("pageNumber", 0)
+        result["rects"] = json.dumps(position.get("rects", []))
+        result["pageWidth"] = position.get("pageWidth", 612)
+        result["pageHeight"] = position.get("pageHeight", 792)
+
+    # Save clause to Convex immediately
+    try:
+        _save_one_clause(review_id, result)
+    except Exception as e:
+        print(f"  Warning: Failed to save clause {index+1}: {e}")
+
+    # Update progress counter
+    counter["completed"] += 1
+    try:
+        convex.mutation("reviews:updateProgress", {
+            "id": review_id,
+            "completedClauses": counter["completed"],
+        })
+    except Exception:
+        pass
+
+    print(f"  Progress: {counter['completed']}/{total}")
+    return result
 
 
 def _build_summary_prompt(
@@ -220,6 +264,7 @@ async def run_contract_analysis(
     pdf_text: str,
     user_id: str,
     ocr_used: bool = False,
+    pdf_bytes: bytes = b"",
 ) -> dict:
     """Run the hybrid contract analysis pipeline.
 
@@ -238,23 +283,45 @@ async def run_contract_analysis(
         # ── Phase 1: Local extraction (instant) ──────────────────────
         print(f"[{review_id}] Phase 1: classify + extract")
         contract_type = classify_contract(pdf_text[:5000])
-        all_clauses = extract_clauses(pdf_text[:15000])
+        all_clauses = extract_clauses(pdf_text)
         print(f"  Type: {contract_type}, Clauses found: {len(all_clauses)}")
 
-        # Pick top 3 longest clauses as proxy for most substantive
-        # (The agent used to waste 2 Dedalus round-trips just to pick these)
-        top_clauses = sorted(all_clauses, key=lambda c: len(c["text"]), reverse=True)[:3]
+        # Report total clause count to frontend
+        try:
+            convex.mutation("reviews:updateProgress", {
+                "id": review_id,
+                "totalClauses": len(all_clauses),
+                "completedClauses": 0,
+            })
+        except Exception:
+            pass
 
-        # ── Phase 2: Parallel RAG + K2 Think + Exa MCP (all at once) ──
-        print(f"[{review_id}] Phase 2: parallel RAG + K2 for {len(top_clauses)} clauses + Exa MCP")
+        # Extract clause positions from PDF (instant, no API calls)
+        clause_positions = []
+        if pdf_bytes:
+            try:
+                clause_positions = extract_clause_positions(pdf_bytes, all_clauses)
+                print(f"  Extracted positions for {len(clause_positions)} clauses")
+            except Exception as e:
+                print(f"  Position extraction failed: {e}")
+
+        # ── Phase 2: Analyze ALL clauses (semaphore-throttled) + Exa ──
+        print(f"[{review_id}] Phase 2: analyzing {len(all_clauses)} clauses (max {CLAUSE_CONCURRENCY} concurrent) + Exa MCP")
         t_phase2 = time.time()
 
-        clause_headings = [c["heading"] for c in top_clauses]
+        sem = asyncio.Semaphore(CLAUSE_CONCURRENCY)
+        counter = {"completed": 0}
+
+        clause_headings = [c["heading"] for c in all_clauses[:10]]  # Exa only needs a sample
         clause_results_nested, exa_context = await asyncio.gather(
             asyncio.gather(
                 *[
-                    _analyze_one_clause(clause, contract_type, i)
-                    for i, clause in enumerate(top_clauses)
+                    _analyze_one_clause_throttled(
+                        sem, clause, contract_type, i,
+                        clause_positions[i] if i < len(clause_positions) else None,
+                        review_id, counter, len(all_clauses),
+                    )
+                    for i, clause in enumerate(all_clauses)
                 ]
             ),
             search_legal_context(contract_type, clause_headings),
@@ -308,27 +375,30 @@ async def run_contract_analysis(
         raise RuntimeError(f"Agent analysis failed: {e}") from e
 
 
-def _save_results(review_id: str, result: dict, ocr_used: bool) -> None:
-    """Save analysis results to Convex."""
-    try:
-        # Write each clause
-        for clause in result.get("clauses", []):
-            convex.mutation(
-                "clauses:addClause",
-                {
-                    "reviewId": review_id,
-                    "clauseText": clause.get("clauseText", ""),
-                    "clauseType": clause.get("clauseType", "Unknown"),
-                    "riskLevel": clause.get("riskLevel", "medium"),
-                    "riskCategory": clause.get("riskCategory", "operational"),
-                    "explanation": clause.get("explanation", ""),
-                    "concern": clause.get("concern"),
-                    "suggestion": clause.get("suggestion"),
-                    "k2Reasoning": clause.get("k2Reasoning"),
-                },
-            )
+def _save_one_clause(review_id: str, clause: dict) -> None:
+    """Save a single analyzed clause to Convex."""
+    clause_data = {
+        "reviewId": review_id,
+        "clauseText": clause.get("clauseText", ""),
+        "clauseType": clause.get("clauseType", "Unknown"),
+        "riskLevel": clause.get("riskLevel", "medium"),
+        "riskCategory": clause.get("riskCategory", "operational"),
+        "explanation": clause.get("explanation", ""),
+        "concern": clause.get("concern"),
+        "suggestion": clause.get("suggestion"),
+        "k2Reasoning": clause.get("k2Reasoning"),
+    }
+    if "pageNumber" in clause:
+        clause_data["pageNumber"] = clause["pageNumber"]
+        clause_data["rects"] = clause.get("rects", "[]")
+        clause_data["pageWidth"] = clause.get("pageWidth", 612)
+        clause_data["pageHeight"] = clause.get("pageHeight", 792)
+    convex.mutation("clauses:addClause", clause_data)
 
-        # Write summary results
+
+def _save_results(review_id: str, result: dict, ocr_used: bool) -> None:
+    """Save summary results to Convex. Clauses are already saved incrementally."""
+    try:
         convex.mutation(
             "reviews:setResults",
             {
@@ -343,6 +413,7 @@ def _save_results(review_id: str, result: dict, ocr_used: bool) -> None:
                 "keyDates": result.get("keyDates", []),
                 "contractType": result.get("contractType"),
                 "reportUrl": f"/api/report/{review_id}",
+                "pdfUrl": f"/pdf/{review_id}",
                 "ocrUsed": ocr_used,
             },
         )
