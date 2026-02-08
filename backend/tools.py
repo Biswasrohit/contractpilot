@@ -56,6 +56,74 @@ def extract_clauses(contract_text: str) -> list[dict]:
     return clauses
 
 
+async def extract_clauses_k2(contract_text: str) -> list[dict]:
+    """Extract clauses from contract text using K2 LLM for accuracy.
+
+    Sends the contract text to K2 and asks it to identify actual
+    numbered/titled clauses, excluding preambles, headers, signatures.
+    Falls back to regex extraction on failure.
+
+    Args:
+        contract_text: The full contract text.
+
+    Returns:
+        List of dicts with 'text' and 'heading' for each clause.
+    """
+    from k2_client import k2
+
+    capped_text = contract_text[:6000]
+
+    prompt = (
+        "You are a contract analyst. Given the contract text below, identify ONLY "
+        "the actual numbered or titled clauses/sections that contain substantive "
+        "legal terms and obligations.\n\n"
+        "EXCLUDE:\n"
+        "- Preambles, recitals, 'WHEREAS' sections\n"
+        "- Title pages, headers, footers\n"
+        "- Signature blocks, witness sections, acknowledgments\n"
+        "- 'KNOW ALL MEN BY THESE PRESENTS' and similar boilerplate\n\n"
+        "For each clause, return its heading (the section number and title) and its "
+        "full text.\n\n"
+        f"CONTRACT TEXT:\n{capped_text}\n\n"
+        "Respond ONLY with a valid JSON array. No markdown, no explanation:\n"
+        '[{"heading": "1. Scope of Work", "text": "full clause text here..."}, ...]'
+    )
+
+    try:
+        response = await k2.chat.completions.create(
+            model="kimi-k2-instruct",
+            messages=[
+                {"role": "system", "content": "Extract contract clauses. Return JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=2048,
+        )
+        content = response.choices[0].message.content or "[]"
+
+        # Strip markdown fences if present
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0]
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0]
+
+        clauses = json.loads(content.strip())
+
+        if isinstance(clauses, list) and len(clauses) > 0:
+            validated = []
+            for c in clauses:
+                if isinstance(c, dict) and "text" in c:
+                    validated.append({
+                        "heading": c.get("heading", "Clause")[:100],
+                        "text": c["text"][:3000],
+                    })
+            if validated:
+                return validated
+    except Exception as e:
+        print(f"  K2 clause extraction failed: {e}, falling back to regex")
+
+    return extract_clauses(contract_text)
+
+
 def classify_contract(contract_text: str) -> str:
     """Classify the type of contract based on its content.
 
@@ -296,6 +364,113 @@ def extract_clause_positions(pdf_bytes: bytes, clauses: list[dict]) -> list[dict
             })
 
     doc.close()
+    return positions
+
+
+def match_clauses_to_ocr_boxes(
+    clauses: list[dict],
+    ocr_words: list[dict],
+    pdf_bytes: bytes,
+) -> list[dict]:
+    """Match clause text to OCR word bounding boxes for scanned PDFs.
+
+    Uses fuzzy sliding-window matching to find clause positions from
+    OCR word data, then groups words into line-level highlight rects.
+
+    Args:
+        clauses: List of clause dicts with 'text' and 'heading'.
+        ocr_words: Flat list of word dicts from ocr_pdf_with_positions().
+        pdf_bytes: Raw PDF bytes (used to get page dimensions).
+
+    Returns:
+        List of position dicts matching extract_clause_positions() format.
+    """
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    page_dims = {}
+    for i in range(len(doc)):
+        page_dims[i] = {"width": doc[i].rect.width, "height": doc[i].rect.height}
+    doc.close()
+
+    positions = []
+
+    for clause in clauses:
+        raw = clause["text"].strip()
+        clause_words_lower = re.findall(r"[a-z0-9]+", raw[:200].lower())
+        if len(clause_words_lower) < 3:
+            positions.append({
+                "pageNumber": 0, "rects": [],
+                "pageWidth": 612, "pageHeight": 792,
+            })
+            continue
+
+        # Sliding window: match first 8 words of clause against OCR words
+        target = clause_words_lower[:8]
+        best_idx = -1
+        best_score = 0
+
+        for i in range(len(ocr_words) - len(target)):
+            score = 0
+            for j, tw in enumerate(target):
+                if i + j < len(ocr_words) and ocr_words[i + j]["text"].lower().startswith(tw[:4]):
+                    score += 1
+            if score > best_score:
+                best_score = score
+                best_idx = i
+
+        if best_score < 3 or best_idx < 0:
+            positions.append({
+                "pageNumber": 0, "rects": [],
+                "pageWidth": 612, "pageHeight": 792,
+            })
+            continue
+
+        # Collect words from match point (~40 words on same page)
+        page_num = ocr_words[best_idx]["page"]
+        matched_words = []
+        for k in range(best_idx, min(best_idx + 40, len(ocr_words))):
+            w = ocr_words[k]
+            if w["page"] != page_num:
+                break
+            matched_words.append(w)
+
+        if not matched_words:
+            dims = page_dims.get(page_num, {"width": 612, "height": 792})
+            positions.append({
+                "pageNumber": page_num, "rects": [],
+                "pageWidth": dims["width"], "pageHeight": dims["height"],
+            })
+            continue
+
+        # Group words into line-level rects (merge words with similar y)
+        lines = []
+        current_line = [matched_words[0]]
+        for w in matched_words[1:]:
+            prev_y = (current_line[-1]["y0"] + current_line[-1]["y1"]) / 2
+            curr_y = (w["y0"] + w["y1"]) / 2
+            if abs(curr_y - prev_y) < 8:
+                current_line.append(w)
+            else:
+                lines.append(current_line)
+                current_line = [w]
+        lines.append(current_line)
+
+        rects = []
+        for line_words in lines:
+            rects.append({
+                "x0": min(w["x0"] for w in line_words),
+                "y0": min(w["y0"] for w in line_words),
+                "x1": max(w["x1"] for w in line_words),
+                "y1": max(w["y1"] for w in line_words),
+            })
+
+        dims = page_dims.get(page_num, {"width": 612, "height": 792})
+        positions.append({
+            "pageNumber": page_num,
+            "rects": rects,
+            "pageWidth": dims["width"],
+            "pageHeight": dims["height"],
+        })
+
     return positions
 
 
