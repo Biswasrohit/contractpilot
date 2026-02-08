@@ -2,11 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  webpack: (config) => {
-    // react-pdf requires canvas to be disabled in SSR
-    config.resolve.alias.canvas = false;
-    return config;
+  turbopack: {
+    resolveAlias: {
+      // react-pdf requires canvas to be disabled in SSR
+      canvas: { browser: "canvas" },
+    },
   },
+  serverExternalPackages: ["pdfjs-dist"],
 };
 
 export default nextConfig;
