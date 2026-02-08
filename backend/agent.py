@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from exa_search import search_legal_context
 from k2_client import analyze_clause_risk
 from prompts import AGENT_SYSTEM_PROMPT
-from tools import categorize_risk, classify_contract, extract_clause_positions, extract_clauses
+from tools import categorize_risk, classify_contract, extract_clause_positions, extract_clauses, extract_clauses_k2, match_clauses_to_ocr_boxes
 from vultr_rag import query_legal_knowledge
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -265,6 +265,7 @@ async def run_contract_analysis(
     user_id: str,
     ocr_used: bool = False,
     pdf_bytes: bytes = b"",
+    ocr_words: list = None,
 ) -> dict:
     """Run the hybrid contract analysis pipeline.
 
@@ -280,10 +281,10 @@ async def run_contract_analysis(
         pass
 
     try:
-        # ── Phase 1: Local extraction (instant) ──────────────────────
-        print(f"[{review_id}] Phase 1: classify + extract")
+        # ── Phase 1: Classification + K2-powered extraction ─────────
+        print(f"[{review_id}] Phase 1: classify + extract (K2)")
         contract_type = classify_contract(pdf_text[:5000])
-        all_clauses = extract_clauses(pdf_text)
+        all_clauses = await extract_clauses_k2(pdf_text)
         print(f"  Type: {contract_type}, Clauses found: {len(all_clauses)}")
 
         # Report total clause count to frontend
@@ -296,12 +297,16 @@ async def run_contract_analysis(
         except Exception:
             pass
 
-        # Extract clause positions from PDF (instant, no API calls)
+        # Extract clause positions from PDF
         clause_positions = []
         if pdf_bytes:
             try:
-                clause_positions = extract_clause_positions(pdf_bytes, all_clauses)
-                print(f"  Extracted positions for {len(clause_positions)} clauses")
+                if ocr_used and ocr_words:
+                    clause_positions = match_clauses_to_ocr_boxes(all_clauses, ocr_words, pdf_bytes)
+                    print(f"  Matched OCR positions for {len(clause_positions)} clauses")
+                else:
+                    clause_positions = extract_clause_positions(pdf_bytes, all_clauses)
+                    print(f"  Extracted positions for {len(clause_positions)} clauses")
             except Exception as e:
                 print(f"  Position extraction failed: {e}")
 
