@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import Link from "next/link";
+import { motion } from "motion/react";
 import UploadDropzone from "@/components/UploadDropzone";
 import UserMenu from "@/components/UserMenu";
 import ThemeToggle from "@/components/ThemeToggle";
+import { fadeUp, staggerContainer } from "@/lib/motion";
 
 export default function Home() {
   const { isAuthenticated } = useConvexAuth();
@@ -71,9 +73,9 @@ export default function Home() {
         <ThemeToggle />
         <UserMenu />
       </nav>
-      <div className="max-w-3xl mx-auto px-4 pt-12 pb-16">
+      <motion.div className="max-w-3xl mx-auto px-4 pt-12 pb-16" variants={staggerContainer} initial="hidden" animate="visible">
         {/* Hero */}
-        <div className="text-center mb-12">
+        <motion.div variants={fadeUp} className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-100 mb-4">
             Contract<span className="text-blue-600">Pilot</span>
           </h1>
@@ -84,10 +86,10 @@ export default function Home() {
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-3">
             First review free, then $2.99/contract
           </p>
-        </div>
+        </motion.div>
 
         {/* Upload */}
-        <div className="relative">
+        <motion.div variants={fadeUp} className="relative">
           <div className={!isAuthenticated ? "opacity-50 pointer-events-none select-none" : ""}>
             <UploadDropzone
               onUpload={handleUpload}
@@ -113,7 +115,7 @@ export default function Home() {
               </button>
             </div>
           )}
-        </div>
+        </motion.div>
 
         {error && (
           <div className="mt-4 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-400 text-center">
@@ -122,8 +124,8 @@ export default function Home() {
         )}
 
         {/* Features */}
-        <div className="grid md:grid-cols-3 gap-6 mt-16">
-          <div className="text-center p-6">
+        <motion.div variants={fadeUp} className="grid md:grid-cols-3 gap-6 mt-16">
+          <motion.div whileHover={{ y: -2 }} className="text-center p-6">
             <div className="text-3xl mb-3">
               <svg className="w-8 h-8 mx-auto text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -133,8 +135,8 @@ export default function Home() {
             <p className="text-gray-500 dark:text-gray-400 text-sm">
               No legal jargon. Every clause explained like a friend would.
             </p>
-          </div>
-          <div className="text-center p-6">
+          </motion.div>
+          <motion.div whileHover={{ y: -2 }} className="text-center p-6">
             <div className="text-3xl mb-3">
               <svg className="w-8 h-8 mx-auto text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -145,8 +147,8 @@ export default function Home() {
               Visual risk dashboard across financial, compliance, operational,
               and reputational categories.
             </p>
-          </div>
-          <div className="text-center p-6">
+          </motion.div>
+          <motion.div whileHover={{ y: -2 }} className="text-center p-6">
             <div className="text-3xl mb-3">
               <svg className="w-8 h-8 mx-auto text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -157,9 +159,9 @@ export default function Home() {
               Download a professional risk analysis report to share with your
               team or lawyer.
             </p>
-          </div>
-        </div>
-      </div>
+          </motion.div>
+        </motion.div>
+      </motion.div>
     </main>
   );
 }

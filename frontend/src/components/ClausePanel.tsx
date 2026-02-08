@@ -1,5 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { expandCollapse } from "@/lib/motion";
+
 interface ClauseData {
   _id: string;
   clauseType?: string;
@@ -32,6 +36,50 @@ const CATEGORY_BADGE: Record<string, string> = {
   operational: "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400",
   reputational: "bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400",
 };
+
+function CollapsibleSection({
+  label,
+  content,
+  colors,
+}: {
+  label: string;
+  content: string;
+  colors: { bg: string; text: string; border: string; hoverText: string };
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`text-xs ${colors.text} ${colors.bg} rounded-lg border ${colors.border}`}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`w-full px-3 py-2 text-left font-semibold hover:${colors.hoverText} flex items-center justify-between`}
+      >
+        {label}
+        <motion.svg
+          className="w-3 h-3"
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </motion.svg>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            variants={expandCollapse}
+            initial="collapsed"
+            animate="expanded"
+            exit="collapsed"
+          >
+            <p className="px-3 pb-2 leading-relaxed">{content}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export default function ClausePanel({ clauses, activeClauseId }: ClausePanelProps) {
   const clause = clauses.find((c) => c._id === activeClauseId);
@@ -109,32 +157,44 @@ export default function ClausePanel({ clauses, activeClauseId }: ClausePanelProp
 
       {/* Concern */}
       {clause.concern && (
-        <details className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-100 dark:border-amber-800">
-          <summary className="px-3 py-2 cursor-pointer font-semibold hover:text-amber-800 dark:hover:text-amber-300">
-            Watch out
-          </summary>
-          <p className="px-3 pb-2 leading-relaxed">{clause.concern}</p>
-        </details>
+        <CollapsibleSection
+          label="Watch out"
+          content={clause.concern}
+          colors={{
+            bg: "bg-amber-50 dark:bg-amber-950",
+            text: "text-amber-700 dark:text-amber-400",
+            border: "border-amber-100 dark:border-amber-800",
+            hoverText: "text-amber-800 dark:hover:text-amber-300",
+          }}
+        />
       )}
 
       {/* Suggestion */}
       {clause.suggestion && (
-        <details className="text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-100 dark:border-blue-800">
-          <summary className="px-3 py-2 cursor-pointer font-semibold hover:text-blue-800 dark:hover:text-blue-300">
-            Suggestion
-          </summary>
-          <p className="px-3 pb-2 leading-relaxed">{clause.suggestion}</p>
-        </details>
+        <CollapsibleSection
+          label="Suggestion"
+          content={clause.suggestion}
+          colors={{
+            bg: "bg-blue-50 dark:bg-blue-950",
+            text: "text-blue-700 dark:text-blue-400",
+            border: "border-blue-100 dark:border-blue-800",
+            hoverText: "text-blue-800 dark:hover:text-blue-300",
+          }}
+        />
       )}
 
       {/* K2 Reasoning (collapsible) */}
       {clause.k2Reasoning && (
-        <details className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
-          <summary className="px-3 py-2 cursor-pointer font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-            Advanced Analysis
-          </summary>
-          <p className="px-3 pb-2 leading-relaxed">{clause.k2Reasoning}</p>
-        </details>
+        <CollapsibleSection
+          label="Advanced Analysis"
+          content={clause.k2Reasoning}
+          colors={{
+            bg: "bg-gray-50 dark:bg-gray-800",
+            text: "text-gray-600 dark:text-gray-400",
+            border: "border-gray-100 dark:border-gray-700",
+            hoverText: "text-gray-700 dark:hover:text-gray-200",
+          }}
+        />
       )}
     </div>
   );

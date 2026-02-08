@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useEffect, useState, useMemo } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { fadeUp, staggerContainer, expandCollapse } from "@/lib/motion";
 
 interface ClauseData {
   _id: string;
@@ -202,7 +204,7 @@ export default function ClauseSidebar({
   );
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-3">
+    <motion.div className="h-full overflow-y-auto p-4 space-y-3" variants={staggerContainer} initial="hidden" animate="visible">
       <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
         Clause Analysis ({clauses.length})
       </h3>
@@ -218,7 +220,7 @@ export default function ClauseSidebar({
             const highCount = item.children.filter((c) => c.riskLevel === "high").length;
 
             return (
-              <div key={item.clause._id}>
+              <motion.div key={item.clause._id} variants={fadeUp}>
                 {/* Parent clause card with expand toggle */}
                 <div className="relative">
                   {renderClauseCard(item.clause, isActive, false)}
@@ -260,25 +262,35 @@ export default function ClauseSidebar({
                     )}
                   </button>
                 )}
-              </div>
+              </motion.div>
             );
           }
 
           // Regular clause without children
-          return renderClauseCard(item.clause, isActive, false);
+          return <motion.div key={item.clause._id} variants={fadeUp}>{renderClauseCard(item.clause, isActive, false)}</motion.div>;
         }
 
         // Sub-clause: only render if parent is expanded
         if (item.type === "subclause") {
           const isExpanded = expandedGroups.has(item.parentHeading);
-          if (!isExpanded) return null;
-
-          const isActive = activeClauseId === item.clause._id;
-          return renderClauseCard(item.clause, isActive, true);
+          return (
+            <AnimatePresence key={item.clause._id} initial={false}>
+              {isExpanded && (
+                <motion.div
+                  variants={expandCollapse}
+                  initial="collapsed"
+                  animate="expanded"
+                  exit="collapsed"
+                >
+                  {renderClauseCard(item.clause, activeClauseId === item.clause._id, true)}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          );
         }
 
         return null;
       })}
-    </div>
+    </motion.div>
   );
 }

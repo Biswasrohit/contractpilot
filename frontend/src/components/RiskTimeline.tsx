@@ -1,5 +1,8 @@
 "use client";
 
+import { motion } from "motion/react";
+import { fadeUp, staggerContainer } from "@/lib/motion";
+
 interface KeyDate {
   date: string;
   label: string;
@@ -25,9 +28,9 @@ export default function RiskTimeline({ keyDates }: RiskTimelineProps) {
       <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
         Key Dates & Deadlines
       </h3>
-      <div className="space-y-3">
+      <motion.div className="space-y-3" variants={staggerContainer} initial="hidden" animate="visible">
         {keyDates.map((kd, i) => (
-          <div key={i} className="flex items-start gap-3">
+          <motion.div key={i} variants={fadeUp} className="flex items-start gap-3">
             <div className="flex flex-col items-center">
               <div
                 className={`w-3 h-3 rounded-full ${typeColors[kd.type] || "bg-gray-400"}`}
@@ -44,9 +47,9 @@ export default function RiskTimeline({ keyDates }: RiskTimelineProps) {
                 <span className="capitalize">{kd.type}</span>
               </p>
             </div>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 }

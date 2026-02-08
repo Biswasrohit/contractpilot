@@ -2,6 +2,8 @@
 
 import { useBilling } from "@flowglad/nextjs";
 import { useState } from "react";
+import { motion } from "motion/react";
+import { fadeUp, staggerContainer, cardHover } from "@/lib/motion";
 
 export default function PricingCards() {
   const { loaded, createCheckoutSession, currentSubscription } = useBilling();
@@ -27,9 +29,9 @@ export default function PricingCards() {
   const hasSubscription = !!currentSubscription;
 
   return (
-    <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
+    <motion.div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto" variants={staggerContainer} initial="hidden" animate="visible">
       {/* Free Tier */}
-      <div className="border border-gray-200 dark:border-gray-700 rounded-2xl p-8">
+      <motion.div variants={fadeUp} whileHover={cardHover} className="border border-gray-200 dark:border-gray-700 rounded-2xl p-8">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Free</h3>
         <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-4">
           $0
@@ -54,10 +56,10 @@ export default function PricingCards() {
             Included
           </span>
         </div>
-      </div>
+      </motion.div>
 
       {/* Pay Per Review */}
-      <div className="border-2 border-blue-600 rounded-2xl p-8 relative">
+      <motion.div variants={fadeUp} whileHover={cardHover} className="border-2 border-blue-600 rounded-2xl p-8 relative">
         <span className="absolute -top-3 left-6 bg-blue-600 text-white text-xs font-medium px-3 py-1 rounded-full">
           Most Popular
         </span>
@@ -97,7 +99,7 @@ export default function PricingCards() {
                 : "Get Started"}
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

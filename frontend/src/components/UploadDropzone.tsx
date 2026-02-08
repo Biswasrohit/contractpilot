@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
+import { motion } from "motion/react";
 
 const ACCEPTED_TYPES: Record<string, string[]> = {
   "application/pdf": [".pdf"],
@@ -68,6 +69,10 @@ export default function UploadDropzone({
 
   return (
     <div className="space-y-4">
+      <motion.div
+        animate={{ scale: isDragActive ? 1.02 : 1 }}
+        transition={{ duration: 0.2, ease: "easeOut" as const }}
+      >
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all ${
@@ -84,7 +89,9 @@ export default function UploadDropzone({
             {isUploading ? (
               <div className="animate-spin h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full" />
             ) : (
-              <svg
+              <motion.svg
+                animate={{ y: isDragActive ? -4 : 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
                 className="w-12 h-12 text-gray-400 dark:text-gray-500"
                 fill="none"
                 stroke="currentColor"
@@ -96,7 +103,7 @@ export default function UploadDropzone({
                   strokeWidth={1.5}
                   d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                 />
-              </svg>
+              </motion.svg>
             )}
           </div>
           <div>
@@ -122,6 +129,7 @@ export default function UploadDropzone({
           {error && <p className="text-red-500 text-sm">{error}</p>}
         </div>
       </div>
+      </motion.div>
 
       {/* OCR toggle */}
       <div

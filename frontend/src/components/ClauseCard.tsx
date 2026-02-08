@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { expandCollapse } from "@/lib/motion";
 
 interface ClauseCardProps {
   clauseType: string;
@@ -102,11 +104,21 @@ export default function ClauseCard({
               />
             </svg>
           </button>
-          {expanded && (
-            <div className="mt-2 p-3 bg-white/70 dark:bg-gray-800/70 rounded-lg text-sm text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
-              {k2Reasoning}
-            </div>
-          )}
+          <AnimatePresence initial={false}>
+            {expanded && (
+              <motion.div
+                key="deep-analysis"
+                variants={expandCollapse}
+                initial="collapsed"
+                animate="expanded"
+                exit="collapsed"
+              >
+                <div className="mt-2 p-3 bg-white/70 dark:bg-gray-800/70 rounded-lg text-sm text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                  {k2Reasoning}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
     </div>

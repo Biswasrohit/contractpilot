@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { motion } from "motion/react";
 import { chatAboutClause } from "@/lib/api";
+import { chatBubbleUser, chatBubbleAssistant, fadeUp, staggerContainer } from "@/lib/motion";
 
 interface Message {
   role: "user" | "assistant";
@@ -130,25 +132,29 @@ export default function ClauseChat({
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 && !isLoading && (
-          <div className="space-y-2">
+          <motion.div className="space-y-2" variants={staggerContainer} initial="hidden" animate="visible">
             <p className="text-xs text-gray-400 dark:text-gray-500 text-center mb-3">
               Ask about this clause
             </p>
             {starterPrompts.map((prompt) => (
-              <button
+              <motion.button
                 key={prompt}
+                variants={fadeUp}
                 onClick={() => sendMessage(prompt)}
                 className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:border-blue-200 dark:hover:border-blue-700 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
               >
                 {prompt}
-              </button>
+              </motion.button>
             ))}
-          </div>
+          </motion.div>
         )}
 
         {messages.map((msg, i) => (
-          <div
+          <motion.div
             key={i}
+            variants={msg.role === "user" ? chatBubbleUser : chatBubbleAssistant}
+            initial="hidden"
+            animate="visible"
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
@@ -175,7 +181,7 @@ export default function ClauseChat({
                 </div>
               )}
             </div>
-          </div>
+          </motion.div>
         ))}
 
         {isLoading && (

@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useMotionValue, useSpring, useTransform } from "motion/react";
+
 interface RiskScoreGaugeProps {
   score: number; // 0-100
 }
@@ -21,6 +24,21 @@ export default function RiskScoreGauge({ score }: RiskScoreGaugeProps) {
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
   const color = getRiskColor(score);
+
+  // Animated counter
+  const motionScore = useMotionValue(0);
+  const springScore = useSpring(motionScore, { stiffness: 50, damping: 20 });
+  const displayScore = useTransform(springScore, (v) => Math.round(v));
+  const [displayed, setDisplayed] = useState(0);
+
+  useEffect(() => {
+    motionScore.set(score);
+  }, [score, motionScore]);
+
+  useEffect(() => {
+    const unsubscribe = displayScore.on("change", (v) => setDisplayed(v));
+    return unsubscribe;
+  }, [displayScore]);
 
   return (
     <div className="flex flex-col items-center">
@@ -49,7 +67,7 @@ export default function RiskScoreGauge({ score }: RiskScoreGaugeProps) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-4xl font-bold" style={{ color }}>
-            {score}
+            {displayed}
           </span>
           <span className="text-gray-500 dark:text-gray-400 text-sm">/100</span>
         </div>

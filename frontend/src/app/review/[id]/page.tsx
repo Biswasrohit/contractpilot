@@ -5,11 +5,13 @@ import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { motion, AnimatePresence } from "motion/react";
 import QuickSummaryView from "@/components/QuickSummaryView";
 import DeepReviewView from "@/components/DeepReviewView";
 import { getPdfUrl } from "@/lib/api";
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
+import { fadeUp, staggerContainer, viewTransition } from "@/lib/motion";
 
 const STEPS = [
   { label: "Uploading", key: "pending" },
@@ -124,7 +126,7 @@ export default function ReviewPage() {
 
         {/* Progress stepper */}
         {isProcessing && (
-          <div className="mb-8 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
+          <motion.div variants={fadeUp} initial="hidden" animate="visible" className="mb-8 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               {STEPS.map((step, i) => (
                 <div key={step.key} className="flex items-center flex-1 last:flex-none">
@@ -189,7 +191,7 @@ export default function ReviewPage() {
                 {clauseCount} clause{clauseCount !== 1 ? "s" : ""} analyzed so far...
               </p>
             ) : null}
-          </div>
+          </motion.div>
         )}
 
         {/* Failed state */}
@@ -243,19 +245,26 @@ export default function ReviewPage() {
               </button>
             </div>
 
-            {viewMode === "quick" ? (
-              <QuickSummaryView
-                review={{ ...review, _id: reviewId }}
-                clauses={topClauses}
-                totalClauseCount={mappedClauses.length}
-              />
-            ) : (
-              <DeepReviewView
-                pdfUrl={getPdfUrl(reviewId)}
-                clauses={mappedClauses}
-                contractType={review.contractType || "General Contract"}
-              />
-            )}
+            <AnimatePresence mode="wait">
+              {viewMode === "quick" ? (
+                <motion.div key="quick" variants={viewTransition} initial="initial" animate="animate" exit="exit">
+                  <QuickSummaryView
+                    review={{ ...review, _id: reviewId }}
+                    clauses={topClauses}
+                    allClauses={mappedClauses}
+                    totalClauseCount={mappedClauses.length}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div key="deep" variants={viewTransition} initial="initial" animate="animate" exit="exit">
+                  <DeepReviewView
+                    pdfUrl={getPdfUrl(reviewId)}
+                    clauses={mappedClauses}
+                    contractType={review.contractType || "General Contract"}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
       </div>

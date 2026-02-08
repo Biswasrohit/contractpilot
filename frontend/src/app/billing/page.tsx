@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "motion/react";
 import PricingCards from "@/components/PricingCards";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ThemeToggle from "@/components/ThemeToggle";
+import { fadeUp, staggerContainer } from "@/lib/motion";
 
 function PricingFallback() {
   return (
@@ -31,19 +33,23 @@ export default function BillingPage() {
           <ThemeToggle />
         </div>
 
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-3">
-            Simple Pricing
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-            Your first contract review is free. After that, each review is just
-            $2.99 — cheaper than a coffee, smarter than a lawyer.
-          </p>
-        </div>
+        <motion.div variants={staggerContainer} initial="hidden" animate="visible">
+          <motion.div variants={fadeUp} className="text-center mb-12">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-3">
+              Simple Pricing
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+              Your first contract review is free. After that, each review is just
+              $2.99 — cheaper than a coffee, smarter than a lawyer.
+            </p>
+          </motion.div>
 
-        <ErrorBoundary fallback={<PricingFallback />}>
-          <PricingCards />
-        </ErrorBoundary>
+          <motion.div variants={fadeUp}>
+            <ErrorBoundary fallback={<PricingFallback />}>
+              <PricingCards />
+            </ErrorBoundary>
+          </motion.div>
+        </motion.div>
 
         <div className="text-center mt-12 text-sm text-gray-400 dark:text-gray-500">
           Powered by{" "}

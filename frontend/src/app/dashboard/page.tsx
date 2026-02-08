@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { motion } from "motion/react";
 import UserMenu from "@/components/UserMenu";
 import ThemeToggle from "@/components/ThemeToggle";
+import { fadeUp, staggerContainer, cardHover } from "@/lib/motion";
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: "bg-gray-100 dark:bg-gray-700", text: "text-gray-600 dark:text-gray-300", label: "Queued" },
@@ -25,9 +27,9 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-950 dark:to-gray-900">
-      <div className="max-w-4xl mx-auto px-4 pt-12 pb-16">
+      <motion.div className="max-w-4xl mx-auto px-4 pt-12 pb-16" variants={staggerContainer} initial="hidden" animate="visible">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <motion.div variants={fadeUp} className="flex items-center justify-between mb-8">
           <div>
             <Link href="/" className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
               &larr; Back to home
@@ -46,7 +48,7 @@ export default function DashboardPage() {
             <ThemeToggle />
             <UserMenu />
           </div>
-        </div>
+        </motion.div>
 
         {/* Loading */}
         {reviews === undefined && (
@@ -91,12 +93,12 @@ export default function DashboardPage() {
 
         {/* Review list */}
         {reviews && reviews.length > 0 && (
-          <div className="space-y-3">
+          <motion.div className="space-y-3" variants={staggerContainer} initial="hidden" animate="visible">
             {reviews.map((review) => {
               const status = STATUS_STYLES[review.status] ?? STATUS_STYLES.pending;
               return (
+                <motion.div key={review._id} variants={fadeUp} whileHover={cardHover}>
                 <Link
-                  key={review._id}
                   href={`/review/${review._id}`}
                   className="block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm transition-all"
                 >
@@ -146,11 +148,12 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </Link>
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
     </main>
   );
 }

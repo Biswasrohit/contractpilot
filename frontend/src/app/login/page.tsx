@@ -5,7 +5,9 @@ import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
+import { motion } from "motion/react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { fadeUp, staggerContainer } from "@/lib/motion";
 
 export default function LoginPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
@@ -34,16 +36,17 @@ export default function LoginPage() {
         </Link>
         <ThemeToggle />
       </nav>
-      <div className="max-w-md mx-auto px-4 pt-16 pb-16 text-center">
+      <motion.div className="max-w-md mx-auto px-4 pt-16 pb-16 text-center" variants={staggerContainer} initial="hidden" animate="visible">
 
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-8 mb-2">
+        <motion.h1 variants={fadeUp} className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-8 mb-2">
           Contract<span className="text-blue-600">Pilot</span>
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mb-10">
+        </motion.h1>
+        <motion.p variants={fadeUp} className="text-gray-500 dark:text-gray-400 mb-10">
           Sign in to upload and analyze contracts
-        </p>
+        </motion.p>
 
-        <button
+        <motion.button
+          variants={fadeUp}
           onClick={() => void signIn("google")}
           className="inline-flex items-center gap-3 px-6 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-colors shadow-sm"
         >
@@ -54,8 +57,8 @@ export default function LoginPage() {
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
           </svg>
           Sign in with Google
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
     </main>
   );
 }
