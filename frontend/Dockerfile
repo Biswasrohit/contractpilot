@@ -12,14 +12,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build args become env vars at build time (needed for Next.js static optimization)
-ARG NEXT_PUBLIC_CONVEX_URL
-ARG NEXT_PUBLIC_BACKEND_URL
-ARG NEXT_PUBLIC_CONVEX_SITE_URL
-
-ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
-ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
-ENV NEXT_PUBLIC_CONVEX_SITE_URL=$NEXT_PUBLIC_CONVEX_SITE_URL
+# Copy env file for build-time NEXT_PUBLIC_ vars (Convex URL, backend URL)
+# This is consumed by Next.js at build time and baked into the client bundle
+COPY .env.local .env.local
 
 RUN npm run build
 
