@@ -25,3 +25,7 @@ export async function analyzeContract(file: File, userId: string) {
 export function getReportUrl(reviewId: string) {
   return `${BACKEND_URL}/report/${reviewId}`;
 }
+
+export function getPdfUrl(reviewId: string) {
+  return `${BACKEND_URL}/pdf/${reviewId}`;
+}

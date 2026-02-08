@@ -15,6 +15,10 @@ from report_generator import generate_pdf_report
 # Load .env from the backend directory regardless of cwd
 load_dotenv(Path(__file__).parent / ".env")
 
+# Directory for storing uploaded PDFs (served back for the PDF viewer)
+PDF_STORAGE_DIR = Path(__file__).parent / "pdf_storage"
+PDF_STORAGE_DIR.mkdir(exist_ok=True)
+
 app = FastAPI(title="ContractPilot Backend")
 
 app.add_middleware(
@@ -52,10 +56,10 @@ def extract_pdf_text(pdf_bytes: bytes) -> tuple[str, bool]:
     return ocr_text, True
 
 
-async def _run_analysis(review_id: str, pdf_text: str, user_id: str, ocr_used: bool):
+async def _run_analysis(review_id: str, pdf_text: str, pdf_bytes: bytes, user_id: str, ocr_used: bool):
     """Background task: run the full agent analysis pipeline."""
     try:
-        await run_contract_analysis(review_id, pdf_text, user_id, ocr_used)
+        await run_contract_analysis(review_id, pdf_text, user_id, ocr_used, pdf_bytes)
     except Exception as e:
         import traceback
         print(f"Analysis failed for {review_id}: {e}")
@@ -96,8 +100,12 @@ async def analyze_contract(
             # Convex not configured — return placeholder
             return {"review_id": "demo", "status": "pending", "ocr_used": ocr_used}
 
+        # Store PDF for the viewer
+        pdf_path = PDF_STORAGE_DIR / f"{review_id}.pdf"
+        pdf_path.write_bytes(pdf_bytes)
+
         # Run analysis in background
-        background_tasks.add_task(_run_analysis, review_id, pdf_text, user_id, ocr_used)
+        background_tasks.add_task(_run_analysis, review_id, pdf_text, pdf_bytes, user_id, ocr_used)
 
         return {"review_id": review_id, "status": "pending", "ocr_used": ocr_used}
     except Exception as e:
@@ -105,6 +113,19 @@ async def analyze_contract(
         traceback.print_exc()
         from fastapi.responses import JSONResponse
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/pdf/{review_id}")
+async def get_pdf(review_id: str):
+    """Serve the original uploaded PDF for the viewer."""
+    pdf_path = PDF_STORAGE_DIR / f"{review_id}.pdf"
+    if not pdf_path.exists():
+        return Response(content=b"PDF not found", status_code=404)
+    return Response(
+        content=pdf_path.read_bytes(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline; filename=contract.pdf"},
+    )
 
 
 @app.get("/report/{review_id}")

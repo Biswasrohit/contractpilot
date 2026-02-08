@@ -22,6 +22,10 @@ export const addClause = mutation({
     concern: v.optional(v.string()),
     suggestion: v.optional(v.string()),
     k2Reasoning: v.optional(v.string()),
+    pageNumber: v.optional(v.number()),
+    rects: v.optional(v.string()),
+    pageWidth: v.optional(v.number()),
+    pageHeight: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("clauses", args);

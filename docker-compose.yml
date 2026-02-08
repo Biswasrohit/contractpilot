@@ -7,6 +7,7 @@ services:
       - ./backend/.env
     volumes:
       - ./backend/google-credentials.json:/app/google-credentials.json:ro
+      - pdf_data:/app/pdf_storage
     restart: unless-stopped
 
   frontend:
@@ -20,3 +21,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  pdf_data:

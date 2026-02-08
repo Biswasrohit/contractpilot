@@ -8,6 +8,8 @@ import base64
 import json
 import re
 
+import fitz
+
 from k2_client import analyze_clause_risk
 from ocr import ocr_pdf
 from vultr_rag import query_legal_knowledge
@@ -170,6 +172,63 @@ def ocr_document(pdf_base64: str) -> str:
     """
     pdf_bytes = base64.b64decode(pdf_base64)
     return ocr_pdf(pdf_bytes)
+
+
+def extract_clause_positions(pdf_bytes: bytes, clauses: list[dict]) -> list[dict]:
+    """Find the page and bounding boxes for each clause in the PDF.
+
+    Uses PyMuPDF text search to locate each clause's opening text.
+
+    Args:
+        pdf_bytes: Raw PDF file bytes.
+        clauses: List of clause dicts with 'text' and 'heading' keys.
+
+    Returns:
+        List of position dicts (same order as input clauses), each with:
+        pageNumber (0-indexed), rects ([{x0,y0,x1,y1}]), pageWidth, pageHeight.
+    """
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    positions = []
+
+    for clause in clauses:
+        raw = clause["text"].strip()
+        found = False
+
+        # Try progressively shorter snippets
+        for snippet_len in (80, 50, 30):
+            snippet = " ".join(raw[:snippet_len].split())  # normalize whitespace
+            if len(snippet) < 10:
+                continue
+
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                rects = page.search_for(snippet)
+                if rects:
+                    positions.append({
+                        "pageNumber": page_num,
+                        "rects": [
+                            {"x0": r.x0, "y0": r.y0, "x1": r.x1, "y1": r.y1}
+                            for r in rects
+                        ],
+                        "pageWidth": page.rect.width,
+                        "pageHeight": page.rect.height,
+                    })
+                    found = True
+                    break
+            if found:
+                break
+
+        if not found:
+            # Fallback: no position data for this clause
+            positions.append({
+                "pageNumber": 0,
+                "rects": [],
+                "pageWidth": 612,
+                "pageHeight": 792,
+            })
+
+    doc.close()
+    return positions
 
 
 async def query_legal_context(clause_text: str, clause_type: str) -> str:

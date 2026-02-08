@@ -62,6 +62,7 @@ export const setResults = mutation({
     ),
     contractType: v.optional(v.string()),
     reportUrl: v.optional(v.string()),
+    pdfUrl: v.optional(v.string()),
     ocrUsed: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {

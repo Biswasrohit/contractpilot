@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from exa_search import search_legal_context
 from k2_client import analyze_clause_risk
 from prompts import AGENT_SYSTEM_PROMPT
-from tools import categorize_risk, classify_contract, extract_clauses
+from tools import categorize_risk, classify_contract, extract_clause_positions, extract_clauses
 from vultr_rag import query_legal_knowledge
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -220,6 +220,7 @@ async def run_contract_analysis(
     pdf_text: str,
     user_id: str,
     ocr_used: bool = False,
+    pdf_bytes: bytes = b"",
 ) -> dict:
     """Run the hybrid contract analysis pipeline.
 
@@ -245,6 +246,15 @@ async def run_contract_analysis(
         # (The agent used to waste 2 Dedalus round-trips just to pick these)
         top_clauses = sorted(all_clauses, key=lambda c: len(c["text"]), reverse=True)[:3]
 
+        # Extract clause positions from PDF (instant, no API calls)
+        clause_positions = []
+        if pdf_bytes:
+            try:
+                clause_positions = extract_clause_positions(pdf_bytes, top_clauses)
+                print(f"  Extracted positions for {len(clause_positions)} clauses")
+            except Exception as e:
+                print(f"  Position extraction failed: {e}")
+
         # ── Phase 2: Parallel RAG + K2 Think + Exa MCP (all at once) ──
         print(f"[{review_id}] Phase 2: parallel RAG + K2 for {len(top_clauses)} clauses + Exa MCP")
         t_phase2 = time.time()
@@ -260,6 +270,15 @@ async def run_contract_analysis(
             search_legal_context(contract_type, clause_headings),
         )
         clause_results = list(clause_results_nested)
+
+        # Merge position data into clause results
+        for i, result in enumerate(clause_results):
+            if i < len(clause_positions):
+                pos = clause_positions[i]
+                result["pageNumber"] = pos.get("pageNumber", 0)
+                result["rects"] = json.dumps(pos.get("rects", []))
+                result["pageWidth"] = pos.get("pageWidth", 612)
+                result["pageHeight"] = pos.get("pageHeight", 792)
 
         if exa_context:
             print(f"  Exa context: {len(exa_context)} chars")
@@ -313,9 +332,7 @@ def _save_results(review_id: str, result: dict, ocr_used: bool) -> None:
     try:
         # Write each clause
         for clause in result.get("clauses", []):
-            convex.mutation(
-                "clauses:addClause",
-                {
+            clause_data = {
                     "reviewId": review_id,
                     "clauseText": clause.get("clauseText", ""),
                     "clauseType": clause.get("clauseType", "Unknown"),
@@ -325,8 +342,13 @@ def _save_results(review_id: str, result: dict, ocr_used: bool) -> None:
                     "concern": clause.get("concern"),
                     "suggestion": clause.get("suggestion"),
                     "k2Reasoning": clause.get("k2Reasoning"),
-                },
-            )
+                }
+            if "pageNumber" in clause:
+                clause_data["pageNumber"] = clause["pageNumber"]
+                clause_data["rects"] = clause.get("rects", "[]")
+                clause_data["pageWidth"] = clause.get("pageWidth", 612)
+                clause_data["pageHeight"] = clause.get("pageHeight", 792)
+            convex.mutation("clauses:addClause", clause_data)
 
         # Write summary results
         convex.mutation(
@@ -343,6 +365,7 @@ def _save_results(review_id: str, result: dict, ocr_used: bool) -> None:
                 "keyDates": result.get("keyDates", []),
                 "contractType": result.get("contractType"),
                 "reportUrl": f"/api/report/{review_id}",
+                "pdfUrl": f"/pdf/{review_id}",
                 "ocrUsed": ocr_used,
             },
         )
