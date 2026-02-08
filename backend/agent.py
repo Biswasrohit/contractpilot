@@ -154,20 +154,38 @@ def _local_fallback_summary(contract_type: str, clause_results: list[dict]) -> d
     }
 
 
-async def _generate_summary_via_dedalus(
+async def _generate_summary(
     contract_type: str,
     clause_results: list[dict],
     contract_text_preview: str,
     exa_context: str = "",
 ) -> dict:
-    """Use Dedalus for ONE call: generate summary + action items + key dates.
+    """Generate summary + action items + key dates via K2 Think.
 
-    Hard 45s Python-level timeout. Falls back to K2, then local computation.
-    Keeps Dedalus ADK in the active pipeline for prize eligibility.
+    Falls back to Dedalus, then local computation.
     """
     prompt = _build_summary_prompt(contract_type, clause_results, contract_text_preview, exa_context)
 
-    # ── Attempt 1: Dedalus (45s hard timeout) ───────────────────────
+    # ── Attempt 1: K2 Think via Vultr (60s timeout built-in) ────────
+    try:
+        from k2_client import k2
+
+        response = await k2.chat.completions.create(
+            model="kimi-k2-instruct",
+            messages=[
+                {"role": "system", "content": "You are ContractPilot. Respond ONLY with valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=1024,
+        )
+        output = response.choices[0].message.content or "{}"
+        result = _parse_llm_json(output)
+        print("  Summary via K2 OK")
+        return result
+    except Exception as e:
+        print(f"  K2 summary failed: {e}, falling back to Dedalus")
+
+    # ── Attempt 2: Dedalus (45s hard timeout) ───────────────────────
     try:
         runner = DedalusRunner(client)
         response = await asyncio.wait_for(
@@ -189,28 +207,9 @@ async def _generate_summary_via_dedalus(
         print("  Summary via Dedalus OK")
         return result
     except asyncio.TimeoutError:
-        print("  Dedalus timed out (45s), falling back to K2")
+        print("  Dedalus timed out (45s), using local fallback")
     except Exception as e:
-        print(f"  Dedalus failed: {e}, falling back to K2")
-
-    # ── Attempt 2: K2 Think via Vultr (60s timeout built-in) ────────
-    try:
-        from k2_client import k2
-
-        response = await k2.chat.completions.create(
-            model="kimi-k2-instruct",
-            messages=[
-                {"role": "system", "content": "You are ContractPilot. Respond ONLY with valid JSON."},
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=1024,
-        )
-        output = response.choices[0].message.content or "{}"
-        result = _parse_llm_json(output)
-        print("  Summary via K2 OK")
-        return result
-    except Exception as e:
-        print(f"  K2 summary also failed: {e}, using local fallback")
+        print(f"  Dedalus also failed: {e}, using local fallback")
 
     # ── Attempt 3: Local computation (instant, no LLM) ──────────────
     return _local_fallback_summary(contract_type, clause_results)
@@ -268,11 +267,11 @@ async def run_contract_analysis(
             print("  Exa context: empty (timed out or unavailable)")
         print(f"  Phase 2 done in {time.time() - t_phase2:.1f}s")
 
-        # ── Phase 3: Dedalus summary (single LLM call) ──────────────
-        print(f"[{review_id}] Phase 3: Dedalus summary")
+        # ── Phase 3: K2 summary (single LLM call) ────────────────────
+        print(f"[{review_id}] Phase 3: K2 summary")
         t_phase3 = time.time()
 
-        summary_data = await _generate_summary_via_dedalus(
+        summary_data = await _generate_summary(
             contract_type, clause_results, pdf_text, exa_context
         )
 
