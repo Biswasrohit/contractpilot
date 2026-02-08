@@ -3,6 +3,7 @@
 import Link from "next/link";
 import PricingCards from "@/components/PricingCards";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { usePlan } from "@/contexts/PlanContext";
 
 function PricingFallback() {
   return (
@@ -17,6 +18,8 @@ function PricingFallback() {
 }
 
 export default function BillingPage() {
+  const { plan, setPlan } = usePlan();
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-4xl mx-auto px-4 pt-16 pb-16">
@@ -42,6 +45,51 @@ export default function BillingPage() {
         <ErrorBoundary fallback={<PricingFallback />}>
           <PricingCards />
         </ErrorBoundary>
+
+        {/* Demo toggle */}
+        <div className="mt-10 max-w-sm mx-auto">
+          <div className="border border-dashed border-gray-300 rounded-xl p-5 bg-gray-50">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 text-center">
+              Demo Mode
+            </p>
+            <div className="flex gap-3 justify-center">
+              <label
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border text-sm font-medium transition-colors ${
+                  plan === "free"
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                    : "border-gray-200 text-gray-500 hover:bg-gray-100"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="plan"
+                  value="free"
+                  checked={plan === "free"}
+                  onChange={() => setPlan("free")}
+                  className="accent-blue-600"
+                />
+                Free User
+              </label>
+              <label
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border text-sm font-medium transition-colors ${
+                  plan === "paid"
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                    : "border-gray-200 text-gray-500 hover:bg-gray-100"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="plan"
+                  value="paid"
+                  checked={plan === "paid"}
+                  onChange={() => setPlan("paid")}
+                  className="accent-blue-600"
+                />
+                Paid User
+              </label>
+            </div>
+          </div>
+        </div>
 
         <div className="text-center mt-12 text-sm text-gray-400">
           Powered by{" "}

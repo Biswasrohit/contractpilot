@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import PDFViewer, { ClauseHighlight } from "./PDFViewer";
 import ClausePanel from "./ClausePanel";
 import ClauseChat from "./ClauseChat";
+import PaywallBlur from "./PaywallBlur";
+import { usePlan } from "@/contexts/PlanContext";
 
 interface Clause {
   _id: string;
@@ -29,6 +31,7 @@ interface DeepReviewViewProps {
 
 export default function DeepReviewView({ pdfUrl, clauses, contractType }: DeepReviewViewProps) {
   const [activeClauseId, setActiveClauseId] = useState<string | null>(null);
+  const { isFree } = usePlan();
 
   // Transform clause data into highlight format for the PDF viewer
   const highlights: ClauseHighlight[] = useMemo(() => {
@@ -72,6 +75,7 @@ export default function DeepReviewView({ pdfUrl, clauses, contractType }: DeepRe
           activeClauseId={activeClauseId}
           onClauseHover={handleClauseHover}
           onClauseClick={handleClauseClick}
+          scrollLocked={isFree}
         />
       </div>
 
@@ -87,11 +91,13 @@ export default function DeepReviewView({ pdfUrl, clauses, contractType }: DeepRe
 
         {/* Bottom: Chat interface */}
         <div className="h-[45%] min-h-[200px] flex flex-col overflow-hidden">
-          <ClauseChat
-            activeClauseId={activeClauseId}
-            clauses={clauses}
-            contractType={contractType}
-          />
+          <PaywallBlur featureLabel="AI Clause Chat" className="h-full">
+            <ClauseChat
+              activeClauseId={activeClauseId}
+              clauses={clauses}
+              contractType={contractType}
+            />
+          </PaywallBlur>
         </div>
       </div>
     </div>

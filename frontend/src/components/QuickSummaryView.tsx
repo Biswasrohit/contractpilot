@@ -4,6 +4,7 @@ import RiskScoreGauge from "./RiskScoreGauge";
 import RiskBreakdownChart from "./RiskBreakdownChart";
 import SummaryPanel from "./SummaryPanel";
 import ActionItems from "./ActionItems";
+import PaywallBlur from "./PaywallBlur";
 import { getReportUrl } from "@/lib/api";
 
 interface Clause {
@@ -43,6 +44,38 @@ const RISK_BADGE: Record<string, string> = {
 };
 
 export default function QuickSummaryView({ review, clauses, totalClauseCount }: QuickSummaryViewProps) {
+  const hasGatedContent = clauses.length > 1 || (review.actionItems && review.actionItems.length > 0);
+
+  function renderClauseCard(clause: Clause) {
+    return (
+      <div
+        key={clause._id}
+        className="bg-white border border-gray-200 rounded-lg p-4"
+      >
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="font-medium text-sm text-gray-900">
+            {clause.clauseType || "Clause"}
+          </span>
+          <span
+            className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+              RISK_BADGE[clause.riskLevel] || RISK_BADGE.medium
+            }`}
+          >
+            {clause.riskLevel}
+          </span>
+        </div>
+        <p className="text-sm text-gray-600 line-clamp-2">
+          {clause.explanation}
+        </p>
+        {clause.suggestion && (
+          <p className="text-xs text-blue-600 mt-1.5">
+            <span className="font-medium">Action:</span> {clause.suggestion}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Summary */}
@@ -67,49 +100,43 @@ export default function QuickSummaryView({ review, clauses, totalClauseCount }: 
         </div>
       </div>
 
-      {/* Top clauses — condensed cards */}
+      {/* Top clauses */}
       {clauses.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
             Top Findings ({clauses.length}{totalClauseCount ? ` of ${totalClauseCount}` : ""})
           </h3>
+
+          {/* 1st finding — always visible */}
           <div className="space-y-2">
-            {clauses.map((clause) => (
-              <div
-                key={clause._id}
-                className="bg-white border border-gray-200 rounded-lg p-4"
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="font-medium text-sm text-gray-900">
-                    {clause.clauseType || "Clause"}
-                  </span>
-                  <span
-                    className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                      RISK_BADGE[clause.riskLevel] || RISK_BADGE.medium
-                    }`}
-                  >
-                    {clause.riskLevel}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 line-clamp-2">
-                  {clause.explanation}
-                </p>
-                {clause.suggestion && (
-                  <p className="text-xs text-blue-600 mt-1.5">
-                    <span className="font-medium">Action:</span> {clause.suggestion}
-                  </p>
-                )}
-              </div>
-            ))}
+            {clauses[0] && renderClauseCard(clauses[0])}
           </div>
+
+          {/* Remaining findings + action items — single gated section */}
+          {hasGatedContent && (
+            <div className="mt-2">
+              <PaywallBlur featureLabel="Full Analysis">
+                <div className="space-y-2">
+                  {clauses.slice(1).map((clause) => renderClauseCard(clause))}
+                </div>
+                {review.actionItems && review.actionItems.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 mt-4">
+                    <ActionItems items={review.actionItems} />
+                  </div>
+                )}
+              </PaywallBlur>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Action items */}
-      {review.actionItems && review.actionItems.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <ActionItems items={review.actionItems} />
-        </div>
+      {/* Action items (only if no clauses to gate with) */}
+      {clauses.length <= 1 && review.actionItems && review.actionItems.length > 0 && (
+        <PaywallBlur featureLabel="Action Items">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <ActionItems items={review.actionItems} />
+          </div>
+        </PaywallBlur>
       )}
 
       {/* Download PDF */}
