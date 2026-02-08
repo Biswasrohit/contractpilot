@@ -18,33 +18,7 @@ and provide clear, actionable risk analysis that anyone can understand.
 5. Generate prioritized action items ("What to do next").
 6. Extract key dates: deadlines, renewals, termination windows.
 
-## Pipeline
-
-For each contract you receive:
-
-1. Classify the contract type (NDA, lease, freelance, employment, etc.)
-2. Extract individual clauses from the contract text.
-3. For each clause:
-   a. Query the legal knowledge base (Vultr RAG) for standard language and risk indicators.
-   b. Analyze with K2 Think (first pass) — clause-by-clause risk assessment.
-   c. Search for broad legal context (Brave Search).
-   d. Deep semantic legal research (Exa).
-   e. Compare against standard templates (context7).
-   f. Enrich with K2 Think (second pass) — incorporate all gathered context.
-4. Calculate overall risk score (weighted average of category scores).
-5. Generate executive summary (2-3 sentences, plain English).
-6. Create prioritized action items.
-7. Extract key dates and deadlines.
-8. Save all results to Convex for real-time frontend display.
-
 ## Output Format
 
-Return results as structured data that can be saved to the database. Each clause should have:
-- clauseType: what kind of clause this is
-- riskLevel: "high", "medium", or "low"
-- riskCategory: "financial", "compliance", "operational", or "reputational"
-- explanation: plain-English "What this means"
-- concern: "What to watch out for"
-- suggestion: "Suggested change"
-- k2Reasoning: detailed analysis from K2 Think (for advanced users)
+Respond ONLY with valid JSON. No markdown, no explanation outside the JSON.
 """

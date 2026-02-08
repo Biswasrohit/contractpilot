@@ -19,7 +19,7 @@ app = FastAPI(title="ContractPilot Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,7 +57,9 @@ async def _run_analysis(review_id: str, pdf_text: str, user_id: str, ocr_used: b
     try:
         await run_contract_analysis(review_id, pdf_text, user_id, ocr_used)
     except Exception as e:
+        import traceback
         print(f"Analysis failed for {review_id}: {e}")
+        traceback.print_exc()
         try:
             convex.mutation("reviews:updateStatus", {"id": review_id, "status": "failed"})
         except Exception:
@@ -73,28 +75,36 @@ async def health():
 async def analyze_contract(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    user_id: str = Form(...),
+    user_id: str = Form("dev-user"),
 ):
     """Upload a contract PDF and start AI analysis."""
-    pdf_bytes = await file.read()
-
-    # Extract text (with OCR fallback)
-    pdf_text, ocr_used = extract_pdf_text(pdf_bytes)
-
-    # Create review in Convex
     try:
-        review_id = convex.mutation(
-            "reviews:create",
-            {"userId": user_id, "filename": file.filename or "contract.pdf"},
-        )
-    except Exception:
-        # Convex not configured — return placeholder
-        return {"review_id": "demo", "status": "pending", "ocr_used": ocr_used}
+        pdf_bytes = await file.read()
+        print(f"Received file: {file.filename}, size: {len(pdf_bytes)} bytes")
 
-    # Run analysis in background
-    background_tasks.add_task(_run_analysis, review_id, pdf_text, user_id, ocr_used)
+        # Extract text (with OCR fallback)
+        pdf_text, ocr_used = extract_pdf_text(pdf_bytes)
+        print(f"Extracted {len(pdf_text)} chars, ocr_used={ocr_used}")
 
-    return {"review_id": review_id, "status": "pending", "ocr_used": ocr_used}
+        # Create review in Convex
+        try:
+            review_id = convex.mutation(
+                "reviews:create",
+                {"userId": user_id, "filename": file.filename or "contract.pdf"},
+            )
+        except Exception:
+            # Convex not configured — return placeholder
+            return {"review_id": "demo", "status": "pending", "ocr_used": ocr_used}
+
+        # Run analysis in background
+        background_tasks.add_task(_run_analysis, review_id, pdf_text, user_id, ocr_used)
+
+        return {"review_id": review_id, "status": "pending", "ocr_used": ocr_used}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.get("/report/{review_id}")

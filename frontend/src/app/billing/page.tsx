@@ -2,6 +2,19 @@
 
 import Link from "next/link";
 import PricingCards from "@/components/PricingCards";
+import ErrorBoundary from "@/components/ErrorBoundary";
+
+function PricingFallback() {
+  return (
+    <div className="max-w-md mx-auto text-center p-8 border border-gray-200 rounded-2xl">
+      <p className="text-4xl font-bold text-gray-900 mb-2">$2.99</p>
+      <p className="text-gray-500 mb-4">per contract review</p>
+      <p className="text-sm text-gray-400">
+        First review free. Billing is being configured.
+      </p>
+    </div>
+  );
+}
 
 export default function BillingPage() {
   return (
@@ -26,7 +39,9 @@ export default function BillingPage() {
           </p>
         </div>
 
-        <PricingCards />
+        <ErrorBoundary fallback={<PricingFallback />}>
+          <PricingCards />
+        </ErrorBoundary>
 
         <div className="text-center mt-12 text-sm text-gray-400">
           Powered by{" "}

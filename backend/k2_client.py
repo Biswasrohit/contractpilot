@@ -18,6 +18,7 @@ load_dotenv(Path(__file__).parent / ".env")
 k2 = AsyncOpenAI(
     api_key=os.environ.get("VULTR_INFERENCE_API_KEY", ""),
     base_url="https://api.vultrinference.com/v1",
+    timeout=60.0,
 )
 
 SYSTEM_PROMPT = """\
@@ -82,7 +83,7 @@ Respond in this exact JSON format:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ],
-        max_tokens=2048,
+        max_tokens=1024,
     )
 
     content = response.choices[0].message.content or "{}"
