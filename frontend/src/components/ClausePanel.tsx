@@ -11,6 +11,8 @@ interface ClauseData {
   suggestion?: string;
   k2Reasoning?: string;
   pageNumber?: number;
+  parentHeading?: string;
+  subClauseIndex?: number;
 }
 
 interface ClausePanelProps {
@@ -60,6 +62,17 @@ export default function ClausePanel({ clauses, activeClauseId }: ClausePanelProp
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-3">
+      {/* Breadcrumb for sub-clauses */}
+      {clause.parentHeading && (
+        <div className="text-xs text-gray-400 flex items-center gap-1">
+          <span className="truncate max-w-[160px]">{clause.parentHeading}</span>
+          <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          <span className="truncate max-w-[160px] text-gray-600">{clause.clauseType || "Sub-clause"}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="font-semibold text-sm text-gray-900 truncate max-w-[240px]">

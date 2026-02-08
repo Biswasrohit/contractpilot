@@ -47,5 +47,7 @@ export default defineSchema({
     rects: v.optional(v.string()), // JSON: [{x0, y0, x1, y1}]
     pageWidth: v.optional(v.number()),
     pageHeight: v.optional(v.number()),
+    parentHeading: v.optional(v.string()),
+    subClauseIndex: v.optional(v.number()),
   }).index("by_review", ["reviewId"]),
 });

@@ -78,9 +78,10 @@ export default function ReviewPage() {
     _id: c._id as string,
   }));
 
-  // Top 3 highest-risk clauses for Quick Summary
+  // Top 3 highest-risk clauses for Quick Summary (exclude sub-clauses)
   const RISK_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
   const topClauses = [...mappedClauses]
+    .filter((c) => !c.parentHeading)
     .sort(
       (a, b) =>
         (RISK_ORDER[a.riskLevel] ?? 1) - (RISK_ORDER[b.riskLevel] ?? 1) ||

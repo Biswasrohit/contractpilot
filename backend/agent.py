@@ -34,7 +34,7 @@ client = AsyncDedalus(
 convex = ConvexClient(os.environ.get("CONVEX_URL", ""))
 
 
-CLAUSE_CONCURRENCY = 4  # Max concurrent K2+RAG calls
+CLAUSE_CONCURRENCY = 6  # Max concurrent K2+RAG calls (raised for sub-clauses)
 
 
 async def _analyze_one_clause(
@@ -86,6 +86,8 @@ async def _analyze_one_clause(
         "concern": k2_result.get("concern", ""),
         "suggestion": k2_result.get("suggestion", ""),
         "k2Reasoning": k2_result.get("reasoning", ""),
+        "parentHeading": clause.get("parentHeading"),
+        "subClauseIndex": clause.get("subClauseIndex"),
     }
 
 
@@ -398,6 +400,10 @@ def _save_one_clause(review_id: str, clause: dict) -> None:
         clause_data["rects"] = clause.get("rects", "[]")
         clause_data["pageWidth"] = clause.get("pageWidth", 612)
         clause_data["pageHeight"] = clause.get("pageHeight", 792)
+    if clause.get("parentHeading"):
+        clause_data["parentHeading"] = clause["parentHeading"]
+    if clause.get("subClauseIndex") is not None:
+        clause_data["subClauseIndex"] = clause["subClauseIndex"]
     convex.mutation("clauses:addClause", clause_data)
 
 

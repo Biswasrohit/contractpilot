@@ -19,6 +19,8 @@ interface Clause {
   rects?: string; // JSON string
   pageWidth?: number;
   pageHeight?: number;
+  parentHeading?: string;
+  subClauseIndex?: number;
 }
 
 interface DeepReviewViewProps {

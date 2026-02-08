@@ -28,8 +28,21 @@ def extract_clauses(contract_text: str) -> list[dict]:
         List of dicts with 'text' and 'heading' for each clause.
     """
     clauses = []
-    # Split on common section patterns: "1.", "Section 1", "ARTICLE I", etc.
-    pattern = r"(?:^|\n)(?=\d+[\.\)]\s|Section\s+\d|ARTICLE\s+[IVX\d]|[A-Z][A-Z\s]{3,}:)"
+    # Split on common section patterns:
+    #   "1.1", "2.14" (decimal numbering — common in legal docs)
+    #   "1.", "2)" (single-level numbering)
+    #   "Section 1", "ARTICLE I"
+    #   "ALL CAPS HEADING:"
+    pattern = (
+        r"(?:^|\n)"
+        r"(?="
+        r"\d+\.\d+(?:\.\d+)*[\.\)]*\s"   # 1.1, 2.14, 1.2.3 (decimal)
+        r"|\d+[\.\)]\s"                    # 1., 2) (single-level)
+        r"|Section\s+\d"                    # Section 1
+        r"|ARTICLE\s+[IVX\d]"              # ARTICLE I, ARTICLE 1
+        r"|[A-Z][A-Z\s]{3,}:"              # ALL CAPS HEADING:
+        r")"
+    )
     sections = re.split(pattern, contract_text)
 
     for section in sections:
@@ -37,9 +50,13 @@ def extract_clauses(contract_text: str) -> list[dict]:
         if len(section) < 30:
             continue
 
-        # Extract heading from first line
-        lines = section.split("\n", 1)
+        # Extract heading from first line; if it's just a number (e.g. "1.2"),
+        # combine with the next line to form a descriptive heading
+        lines = section.split("\n", 2)
         heading = lines[0].strip()[:100]
+        if re.match(r"^\d+[\.\d]*[\.\)]*$", heading) and len(lines) > 1:
+            next_line = lines[1].strip()[:80]
+            heading = f"{heading} {next_line}"[:100]
         text = section[:3000]  # Cap clause length
 
         clauses.append({"heading": heading, "text": text})
@@ -56,72 +73,229 @@ def extract_clauses(contract_text: str) -> list[dict]:
     return clauses
 
 
-async def extract_clauses_k2(contract_text: str) -> list[dict]:
-    """Extract clauses from contract text using K2 LLM for accuracy.
+MAX_CLAUSES = 60  # Hard cap on total clauses (including sub-clauses)
 
-    Sends the contract text to K2 and asks it to identify actual
-    numbered/titled clauses, excluding preambles, headers, signatures.
-    Falls back to regex extraction on failure.
+
+def _cap_clauses(clauses: list[dict], limit: int = MAX_CLAUSES) -> list[dict]:
+    """Cap clause list to limit, prioritizing top-level clauses over sub-clauses.
+
+    Ensures broad document coverage by keeping all top-level clauses first,
+    then filling remaining slots with sub-clauses in order.
+    """
+    if len(clauses) <= limit:
+        return clauses
+
+    top_level = [c for c in clauses if not c.get("parentHeading")]
+    sub_clauses = [c for c in clauses if c.get("parentHeading")]
+
+    if len(top_level) >= limit:
+        return top_level[:limit]
+
+    remaining = limit - len(top_level)
+    kept_subs = sub_clauses[:remaining]
+
+    # Rebuild in original order
+    kept_set = set(id(c) for c in top_level) | set(id(c) for c in kept_subs)
+    return [c for c in clauses if id(c) in kept_set]
+
+
+_SUB_CLAUSE_PATTERN = re.compile(
+    r"(?:^|\n)\s*(?:"
+    r"\d+\.\d+[\.\)]*\s"           # 3.1, 3.1., 3.1)
+    r"|\([a-z]\)\s"                 # (a), (b)
+    r"|\([ivxlc]+\)\s"             # (i), (ii), (iv)
+    r"|\([A-Z]\)\s"                 # (A), (B)
+    r"|[a-z][\.\)]\s"              # a., b)
+    r"|\d+\.\d+\.\d+[\.\)]*\s"    # 3.1.1, 3.1.1.
+    r")",
+    re.MULTILINE,
+)
+
+
+def split_into_subclauses(clauses: list[dict]) -> list[dict]:
+    """Split clauses that contain sub-parts into individual sub-clause entries.
+
+    Detects sub-clause patterns like 3.1, 3.2, (a), (b), (i), (ii) within
+    each clause's text. Clauses with detected sub-parts are expanded into
+    separate entries with a parentHeading field.
+
+    Args:
+        clauses: List of clause dicts with 'heading' and 'text'.
+
+    Returns:
+        Expanded list where multi-part clauses are split into sub-entries.
+    """
+    result = []
+    for clause in clauses:
+        text = clause["text"]
+        heading = clause["heading"]
+
+        matches = list(_SUB_CLAUSE_PATTERN.finditer(text))
+
+        # If fewer than 2 sub-parts found, keep clause as-is
+        if len(matches) < 2:
+            result.append(clause)
+            continue
+
+        # Keep preamble text (before first sub-clause) as standalone entry
+        preamble_end = matches[0].start()
+        preamble = text[:preamble_end].strip()
+        if len(preamble) > 30:
+            result.append({
+                "heading": heading,
+                "text": preamble[:3000],
+            })
+
+        # Split into individual sub-clauses
+        for i, match in enumerate(matches):
+            start = match.start()
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            sub_text = text[start:end].strip()
+
+            if len(sub_text) < 20:
+                continue
+
+            sub_lines = sub_text.split("\n", 1)
+            sub_heading = sub_lines[0].strip()[:100]
+
+            result.append({
+                "heading": sub_heading,
+                "text": sub_text[:3000],
+                "parentHeading": heading,
+                "subClauseIndex": i,
+            })
+
+    return result
+
+
+async def extract_clauses_k2(contract_text: str) -> list[dict]:
+    """Extract clauses using full-text regex + K2 intelligent filtering.
+
+    For short documents (< 6000 chars): sends full text to K2 directly,
+    then splits sub-clauses.
+    For large documents: runs regex on full text, splits sub-clauses,
+    then uses K2 to filter out non-substantive sections.
 
     Args:
         contract_text: The full contract text.
 
     Returns:
         List of dicts with 'text' and 'heading' for each clause.
+        Sub-clause entries also have 'parentHeading' and 'subClauseIndex'.
     """
     from k2_client import k2
 
-    capped_text = contract_text[:6000]
+    # ── Short documents: K2 single-pass (existing proven approach) ────
+    if len(contract_text) <= 6000:
+        prompt = (
+            "You are a contract analyst. Given the contract text below, identify ONLY "
+            "the actual numbered or titled clauses/sections that contain substantive "
+            "legal terms and obligations.\n\n"
+            "EXCLUDE:\n"
+            "- Preambles, recitals, 'WHEREAS' sections\n"
+            "- Title pages, headers, footers\n"
+            "- Signature blocks, witness sections, acknowledgments\n"
+            "- 'KNOW ALL MEN BY THESE PRESENTS' and similar boilerplate\n\n"
+            "For each clause, return its heading (the section number and title) and its "
+            "full text.\n\n"
+            f"CONTRACT TEXT:\n{contract_text}\n\n"
+            "Respond ONLY with a valid JSON array. No markdown, no explanation:\n"
+            '[{"heading": "1. Scope of Work", "text": "full clause text here..."}, ...]'
+        )
 
-    prompt = (
-        "You are a contract analyst. Given the contract text below, identify ONLY "
-        "the actual numbered or titled clauses/sections that contain substantive "
-        "legal terms and obligations.\n\n"
-        "EXCLUDE:\n"
-        "- Preambles, recitals, 'WHEREAS' sections\n"
-        "- Title pages, headers, footers\n"
-        "- Signature blocks, witness sections, acknowledgments\n"
-        "- 'KNOW ALL MEN BY THESE PRESENTS' and similar boilerplate\n\n"
-        "For each clause, return its heading (the section number and title) and its "
-        "full text.\n\n"
-        f"CONTRACT TEXT:\n{capped_text}\n\n"
-        "Respond ONLY with a valid JSON array. No markdown, no explanation:\n"
-        '[{"heading": "1. Scope of Work", "text": "full clause text here..."}, ...]'
+        try:
+            response = await k2.chat.completions.create(
+                model="kimi-k2-instruct",
+                messages=[
+                    {"role": "system", "content": "Extract contract clauses. Return JSON only."},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=2048,
+            )
+            content = response.choices[0].message.content or "[]"
+
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0]
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0]
+
+            clauses = json.loads(content.strip())
+
+            if isinstance(clauses, list) and len(clauses) > 0:
+                validated = []
+                for c in clauses:
+                    if isinstance(c, dict) and "text" in c:
+                        validated.append({
+                            "heading": c.get("heading", "Clause")[:100],
+                            "text": c["text"][:3000],
+                        })
+                if validated:
+                    return _cap_clauses(split_into_subclauses(validated))
+        except Exception as e:
+            print(f"  K2 clause extraction failed: {e}, falling back to regex")
+
+        return _cap_clauses(split_into_subclauses(extract_clauses(contract_text)))
+
+    # ── Large documents: hybrid regex-first + K2 filtering ────────────
+    print(f"  Large document ({len(contract_text)} chars), using hybrid extraction")
+
+    # Step A: Full-text regex extraction (instant, no limits)
+    raw_clauses = extract_clauses(contract_text)
+    print(f"  Regex extracted {len(raw_clauses)} top-level sections")
+
+    # Step B: Split into sub-clauses
+    expanded = split_into_subclauses(raw_clauses)
+    print(f"  After sub-clause split: {len(expanded)} total entries")
+
+    # Step C: Build compact TOC for K2 filtering
+    toc_lines = []
+    for i, c in enumerate(expanded):
+        prefix = f"  (sub of: {c['parentHeading'][:40]})" if c.get("parentHeading") else ""
+        preview = c["text"][:150].replace("\n", " ")
+        toc_lines.append(f"{i}: {c['heading'][:60]}{prefix} | {preview}")
+
+    toc = "\n".join(toc_lines)
+
+    # Step D: K2 filters the TOC
+    filter_prompt = (
+        "You are a contract analyst. Below is a table of contents of sections "
+        "extracted from a contract. Each line has format: INDEX: HEADING | PREVIEW\n\n"
+        "Return a JSON object with:\n"
+        '- "keep": list of index numbers to KEEP (substantive clauses with legal obligations)\n'
+        '- "remove": list of index numbers to REMOVE (preambles, signatures, boilerplate, '
+        "table of contents, headers, footers, blank sections, witness blocks)\n\n"
+        f"TABLE OF CONTENTS ({len(expanded)} sections):\n{toc}\n\n"
+        'Respond ONLY with valid JSON: {"keep": [0, 2, 3], "remove": [1, 4]}'
     )
 
     try:
         response = await k2.chat.completions.create(
             model="kimi-k2-instruct",
             messages=[
-                {"role": "system", "content": "Extract contract clauses. Return JSON only."},
-                {"role": "user", "content": prompt},
+                {"role": "system", "content": "Filter contract sections. Return JSON only."},
+                {"role": "user", "content": filter_prompt},
             ],
-            max_tokens=2048,
+            max_tokens=512,
         )
-        content = response.choices[0].message.content or "[]"
+        content = response.choices[0].message.content or "{}"
 
-        # Strip markdown fences if present
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0]
         elif "```" in content:
             content = content.split("```")[1].split("```")[0]
 
-        clauses = json.loads(content.strip())
+        filter_result = json.loads(content.strip())
+        keep_indices = set(filter_result.get("keep", range(len(expanded))))
 
-        if isinstance(clauses, list) and len(clauses) > 0:
-            validated = []
-            for c in clauses:
-                if isinstance(c, dict) and "text" in c:
-                    validated.append({
-                        "heading": c.get("heading", "Clause")[:100],
-                        "text": c["text"][:3000],
-                    })
-            if validated:
-                return validated
+        filtered = [expanded[i] for i in range(len(expanded)) if i in keep_indices]
+        print(f"  K2 filtered to {len(filtered)} clauses (removed {len(expanded) - len(filtered)})")
+
+        if filtered:
+            return _cap_clauses(filtered)
     except Exception as e:
-        print(f"  K2 clause extraction failed: {e}, falling back to regex")
+        print(f"  K2 filtering failed: {e}, using all regex-extracted clauses")
 
-    return extract_clauses(contract_text)
+    return _cap_clauses(expanded)
 
 
 def classify_contract(contract_text: str) -> str:
