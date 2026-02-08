@@ -158,7 +158,7 @@ def format_review_report(
 
 
 def ocr_document(pdf_base64: str) -> str:
-    """Extract text from a scanned PDF using Google Vision OCR.
+    """Extract text from a scanned PDF using Tesseract OCR.
 
     Use this when pdf-parse returns poor or empty results (scanned documents).
 

@@ -8,15 +8,25 @@ import UploadDropzone from "@/components/UploadDropzone";
 export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ocrEnabled, setOcrEnabled] = useState(false);
+  const [fileType, setFileType] = useState<string | null>(null);
   const router = useRouter();
 
   async function handleUpload(file: File) {
     setIsUploading(true);
     setError(null);
 
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const detectedType = ext === "docx" ? "docx" : "pdf";
+    setFileType(detectedType);
+
+    // OCR only applies to PDFs
+    const effectiveOcr = detectedType === "docx" ? false : ocrEnabled;
+
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("use_ocr", effectiveOcr ? "true" : "false");
 
       const res = await fetch("/api/review", {
         method: "POST",
@@ -67,7 +77,13 @@ export default function Home() {
         </div>
 
         {/* Upload */}
-        <UploadDropzone onUpload={handleUpload} isUploading={isUploading} />
+        <UploadDropzone
+          onUpload={handleUpload}
+          isUploading={isUploading}
+          ocrEnabled={ocrEnabled}
+          onOcrToggle={setOcrEnabled}
+          fileType={fileType}
+        />
 
         {error && (
           <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-center">

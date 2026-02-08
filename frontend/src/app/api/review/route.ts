@@ -36,9 +36,14 @@ export async function POST(request: NextRequest) {
     // }
 
     // Forward to Python backend
+    const useOcr = formData.get("use_ocr");
+
     const backendForm = new FormData();
     backendForm.append("file", file);
     backendForm.append("user_id", userId);
+    if (useOcr) {
+      backendForm.append("use_ocr", useOcr.toString());
+    }
 
     const res = await fetch(`${BACKEND_URL}/analyze`, {
       method: "POST",
