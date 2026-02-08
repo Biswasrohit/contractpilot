@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// BACKEND_URL (server-only) is for Docker where services use container names.
+// Falls back to NEXT_PUBLIC_BACKEND_URL for local dev.
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+  process.env.BACKEND_URL ??
+  process.env.NEXT_PUBLIC_BACKEND_URL ??
+  "http://localhost:8000";
 
 export async function POST(request: NextRequest) {
   try {
