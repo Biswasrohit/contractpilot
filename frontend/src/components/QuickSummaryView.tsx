@@ -7,7 +7,6 @@ import RiskBreakdownChart from "./RiskBreakdownChart";
 import SummaryPanel from "./SummaryPanel";
 import ActionItems from "./ActionItems";
 import PaywallBlur from "./PaywallBlur";
-import { getReportUrl } from "@/lib/api";
 import { generateReport } from "@/lib/report";
 import { fadeUp, staggerContainer } from "@/lib/motion";
 
