@@ -398,8 +398,8 @@ def compute_risk_breakdown(clause_results_json: str) -> str:
         score = risk_weights.get(level, 50)
         if cat in categories:
             categories[cat].append(score)
-        # Every clause also contributes partially to its level
-        categories.setdefault(cat, []).append(score)
+        else:
+            categories.setdefault(cat, []).append(score)
 
     result = {}
     all_scores = []
