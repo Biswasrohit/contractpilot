@@ -29,6 +29,7 @@ export default function PaywallBlur({
   const unlock = useMutation(api.credits.unlockReview);
   const [showConfirm, setShowConfirm] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
 
   if (isOverride || unlocked) {
     return <>{children}</>;
@@ -39,13 +40,15 @@ export default function PaywallBlur({
   async function handleUnlock() {
     if (!reviewId) return;
     setUnlocking(true);
+    setUnlockError(null);
     try {
       await unlock({ reviewId: reviewId as Id<"reviews"> });
+      setShowConfirm(false);
     } catch (err) {
       console.error("Unlock error:", err);
+      setUnlockError("Failed to unlock. Please try again.");
     } finally {
       setUnlocking(false);
-      setShowConfirm(false);
     }
   }
 
@@ -80,6 +83,9 @@ export default function PaywallBlur({
               <p className="text-xs text-gray-500 mb-3">
                 Use 1 credit to unlock this review? ({credits - 1} will remain)
               </p>
+              {unlockError && (
+                <p className="text-xs text-red-600 dark:text-red-400 mb-2">{unlockError}</p>
+              )}
               <div className="flex gap-2 justify-center">
                 <button
                   onClick={handleUnlock}

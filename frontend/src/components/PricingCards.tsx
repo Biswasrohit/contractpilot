@@ -10,6 +10,7 @@ export default function PricingCards() {
   const { loaded, createCheckoutSession } = useBilling();
   const pricingModel = usePricing();
   const [loading, setLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const { credits } = usePlan();
 
   const defaultPrice = pricingModel?.products?.[0]?.defaultPrice;
@@ -17,6 +18,7 @@ export default function PricingCards() {
   async function handleCheckout() {
     if (!defaultPrice) return;
     setLoading(true);
+    setCheckoutError(null);
     try {
       await createCheckoutSession?.({
         priceId: defaultPrice.id,
@@ -27,6 +29,7 @@ export default function PricingCards() {
       });
     } catch (err) {
       console.error("Checkout error:", err);
+      setCheckoutError("Checkout failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -107,6 +110,9 @@ export default function PricingCards() {
                 ? "Buy More Credits"
                 : "Get Started"}
           </button>
+          {checkoutError && (
+            <p className="text-xs text-red-600 dark:text-red-400 text-center mt-2">{checkoutError}</p>
+          )}
         </div>
       </motion.div>
     </motion.div>
