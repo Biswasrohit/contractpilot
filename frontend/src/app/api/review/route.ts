@@ -53,10 +53,28 @@ export async function POST(request: NextRequest) {
       backendForm.append("use_ocr", useOcr.toString());
     }
 
-    const res = await fetch(`${BACKEND_URL}/analyze`, {
-      method: "POST",
-      body: backendForm,
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    let res: Response;
+    try {
+      res = await fetch(`${BACKEND_URL}/analyze`, {
+        method: "POST",
+        body: backendForm,
+        signal: controller.signal,
+      });
+    } catch (fetchError) {
+      clearTimeout(timeout);
+      if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
+        return NextResponse.json(
+          { error: "Backend did not respond within 30 seconds. Please try again." },
+          { status: 504 }
+        );
+      }
+      throw fetchError;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
