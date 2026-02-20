@@ -386,8 +386,25 @@ def compute_risk_breakdown(clause_results_json: str) -> str:
     except (json.JSONDecodeError, TypeError):
         return json.dumps({"error": "Invalid JSON input"})
 
-    risk_weights = {"high": 85, "medium": 50, "low": 15}
-    categories = {
+    # Clause importance weights — high-impact clause types contribute more
+    clause_importance = {
+        "indemnification": 1.5, "indemnity": 1.5,
+        "limitation of liability": 1.5, "liability": 1.4,
+        "termination": 1.3, "non-compete": 1.3, "non compete": 1.3,
+        "penalty": 1.4, "liquidated damages": 1.4, "damages": 1.3,
+        "payment": 1.2, "compensation": 1.2,
+        "intellectual property": 1.2, "ip assignment": 1.2,
+        "confidentiality": 1.1, "non-disclosure": 1.1,
+        "warranty": 1.1, "representations": 1.0,
+        "force majeure": 0.9, "assignment": 0.9,
+        "governing law": 0.8, "jurisdiction": 0.8,
+        "notices": 0.7, "miscellaneous": 0.6, "definitions": 0.5,
+    }
+
+    # Risk score ranges (instead of flat values)
+    risk_ranges = {"high": (70, 95), "medium": (35, 65), "low": (5, 30)}
+
+    categories: dict[str, list[tuple[float, float]]] = {
         "financial": [], "compliance": [],
         "operational": [], "reputational": [],
     }
@@ -395,25 +412,42 @@ def compute_risk_breakdown(clause_results_json: str) -> str:
     for c in clauses:
         cat = c.get("riskCategory", "operational")
         level = c.get("riskLevel", "medium")
-        score = risk_weights.get(level, 50)
+        clause_type = c.get("clauseType", "").lower()
+
+        # Determine importance weight for this clause type
+        importance = 1.0
+        for key, weight in clause_importance.items():
+            if key in clause_type:
+                importance = weight
+                break
+
+        # Compute score within the risk range, scaled by importance
+        low, high = risk_ranges.get(level, (35, 65))
+        importance_factor = min(importance / 1.5, 1.0)  # normalize to 0-1
+        score = low + (high - low) * importance_factor
+
         if cat in categories:
-            categories[cat].append(score)
+            categories[cat].append((score, importance))
         else:
-            categories.setdefault(cat, []).append(score)
+            categories.setdefault(cat, []).append((score, importance))
 
     result = {}
-    all_scores = []
-    for cat, scores in categories.items():
-        if scores:
-            avg = int(sum(scores) / len(scores))
-            result[f"{cat}Risk"] = avg
-            all_scores.extend(scores)
+    all_weighted_scores = []
+    all_weights = []
+    for cat, entries in categories.items():
+        if entries:
+            total_weight = sum(w for _, w in entries)
+            weighted_avg = sum(s * w for s, w in entries) / total_weight
+            result[f"{cat}Risk"] = int(weighted_avg)
+            all_weighted_scores.extend(s * w for s, w in entries)
+            all_weights.extend(w for _, w in entries)
         else:
-            result[f"{cat}Risk"] = 25  # default low if no clauses in category
+            result[f"{cat}Risk"] = 25
 
-    result["riskScore"] = int(sum(all_scores) / len(all_scores)) if all_scores else 50
+    total_weight = sum(all_weights)
+    result["riskScore"] = int(sum(all_weighted_scores) / total_weight) if total_weight > 0 else 50
     result["distribution"] = {
-        cat: len(scores) for cat, scores in categories.items()
+        cat: len(entries) for cat, entries in categories.items()
     }
     result["totalClauses"] = len(clauses)
 
