@@ -70,7 +70,21 @@ def extract_clauses(contract_text: str) -> list[dict]:
 
         clauses.append({"heading": heading, "text": text})
 
-    # If no sections found, split by double newlines
+    # If no sections found, try splitting on lines that look like headings
+    if not clauses:
+        heading_pattern = re.compile(
+            r"(?:^|\n)([A-Z][A-Za-z\s]{2,60}(?:[:.])\s*\n)"
+        )
+        heading_sections = heading_pattern.split(contract_text)
+        if len(heading_sections) > 2:
+            for j in range(1, len(heading_sections) - 1, 2):
+                heading = heading_sections[j].strip().rstrip(":.")
+                body = heading_sections[j + 1].strip() if j + 1 < len(heading_sections) else ""
+                if len(body) < 50:
+                    continue
+                clauses.append({"heading": heading[:100], "text": body[:3000]})
+
+    # Final fallback: split by double newlines
     if not clauses:
         paragraphs = contract_text.split("\n\n")
         for i, para in enumerate(paragraphs):
