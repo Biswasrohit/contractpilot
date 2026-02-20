@@ -64,7 +64,7 @@ async def _analyze_one_clause(
     try:
         rag_context = await query_legal_knowledge(clause_text, heading)
     except Exception as e:
-        rag_context = f"RAG unavailable: {e}"
+        rag_context = ""
         print(f"  Clause {index+1} RAG failed: {e}")
 
     # Step 2: K2 Think deep analysis (with RAG context)
