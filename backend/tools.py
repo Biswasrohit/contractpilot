@@ -38,9 +38,18 @@ def extract_clauses(contract_text: str) -> list[dict]:
         r"(?="
         r"\d+\.\d+(?:\.\d+)*[\.\)]*\s"   # 1.1, 2.14, 1.2.3 (decimal)
         r"|\d+[\.\)]\s"                    # 1., 2) (single-level)
+        r"|[A-Z][\.\)]\s"                  # A., B) (lettered sections)
+        r"|\([A-Z]\)\s"                    # (A), (B)
         r"|Section\s+\d"                    # Section 1
+        r"|SECTION\s+\d"                    # SECTION 1
         r"|ARTICLE\s+[IVX\d]"              # ARTICLE I, ARTICLE 1
+        r"|Article\s+[IVX\d]"              # Article I, Article 1
+        r"|SCHEDULE\s+[A-Z\d]"             # SCHEDULE A, SCHEDULE 1
+        r"|Exhibit\s+[A-Z\d]"              # Exhibit A, Exhibit 1
+        r"|RECITALS?"                       # RECITAL or RECITALS
+        r"|WITNESSETH"                      # WITNESSETH
         r"|[A-Z][A-Z\s]{3,}:"              # ALL CAPS HEADING:
+        r"|[A-Z][A-Z\s]{3,}\.(?=\s)"       # ALL CAPS HEADING. (followed by space)
         r")"
     )
     sections = re.split(pattern, contract_text)
