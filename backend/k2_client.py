@@ -95,7 +95,7 @@ Respond in this exact JSON format:
         content = content.split("```")[1].split("```")[0]
 
     try:
-        return json.loads(content.strip())
+        result = json.loads(content.strip())
     except json.JSONDecodeError:
         return {
             "riskLevel": "medium",
@@ -105,3 +105,30 @@ Respond in this exact JSON format:
             "suggestion": "Manual review recommended",
             "reasoning": content,
         }
+
+    # Validate and normalize required fields
+    valid_risk_levels = {"high", "medium", "low"}
+    valid_categories = {"financial", "compliance", "operational", "reputational"}
+
+    risk_level = str(result.get("riskLevel", "")).lower()
+    if risk_level not in valid_risk_levels:
+        result["riskLevel"] = "medium"
+    else:
+        result["riskLevel"] = risk_level
+
+    risk_category = str(result.get("riskCategory", "")).lower()
+    if risk_category not in valid_categories:
+        result["riskCategory"] = "operational"
+    else:
+        result["riskCategory"] = risk_category
+
+    if not result.get("explanation"):
+        result["explanation"] = "Analysis incomplete — manual review recommended"
+    if not result.get("concern"):
+        result["concern"] = "No specific concerns identified"
+    if not result.get("suggestion"):
+        result["suggestion"] = "Review this clause carefully"
+    if not result.get("reasoning"):
+        result["reasoning"] = ""
+
+    return result
