@@ -322,7 +322,10 @@ async def extract_clauses_k2(contract_text: str) -> list[dict]:
 
 
 def classify_contract(contract_text: str) -> str:
-    """Classify the type of contract based on its content.
+    """Classify the type of contract based on weighted keyword scoring.
+
+    Uses occurrence counts of keyword groups with distinctive keywords weighted
+    higher to avoid false matches from incidental mentions.
 
     Args:
         contract_text: The full contract text.
@@ -332,24 +335,68 @@ def classify_contract(contract_text: str) -> str:
     """
     text_lower = contract_text[:5000].lower()
 
-    if any(term in text_lower for term in ["non-disclosure", "nda", "confidential information"]):
-        return "NDA"
-    elif any(term in text_lower for term in ["employment", "employee", "employer", "at-will"]):
-        return "Employment Agreement"
-    elif any(term in text_lower for term in ["lease", "landlord", "tenant", "premises", "rent"]):
-        return "Lease Agreement"
-    elif any(term in text_lower for term in ["freelance", "independent contractor", "scope of work"]):
-        return "Freelance/Contractor Agreement"
-    elif any(term in text_lower for term in ["service agreement", "services", "service level"]):
-        return "Service Agreement"
-    elif any(term in text_lower for term in ["purchase", "buyer", "seller", "sale"]):
-        return "Purchase Agreement"
-    elif any(term in text_lower for term in ["partnership", "joint venture"]):
-        return "Partnership Agreement"
-    elif any(term in text_lower for term in ["license", "licensor", "licensee"]):
-        return "License Agreement"
-    else:
-        return "General Contract"
+    # (contract_type, [(keyword, weight), ...])
+    contract_types = [
+        ("NDA", [
+            ("non-disclosure", 3), ("nda", 3), ("confidential information", 2),
+            ("disclosing party", 2), ("receiving party", 2),
+        ]),
+        ("Employment Agreement", [
+            ("employment agreement", 3), ("at-will", 3), ("employee", 1),
+            ("employer", 1), ("probationary", 2), ("severance", 2),
+            ("job title", 2), ("base salary", 2),
+        ]),
+        ("Lease Agreement", [
+            ("lease agreement", 3), ("landlord", 2), ("tenant", 2),
+            ("premises", 1), ("rent", 1), ("security deposit", 2),
+            ("leasehold", 3), ("sublease", 2),
+        ]),
+        ("Freelance/Contractor Agreement", [
+            ("independent contractor", 3), ("freelance", 3),
+            ("scope of work", 2), ("deliverables", 1), ("1099", 3),
+        ]),
+        ("Consulting Agreement", [
+            ("consulting agreement", 3), ("consultant", 2),
+            ("consulting services", 3), ("engagement", 1), ("retainer", 2),
+        ]),
+        ("SaaS/Software License", [
+            ("software license", 3), ("saas", 3), ("subscription", 2),
+            ("end user", 2), ("uptime", 2), ("service level agreement", 3),
+            ("api", 1), ("cloud", 1),
+        ]),
+        ("Service Agreement", [
+            ("service agreement", 3), ("services", 1), ("service level", 2),
+            ("service provider", 2), ("statement of work", 2),
+        ]),
+        ("Purchase Agreement", [
+            ("purchase agreement", 3), ("buyer", 2), ("seller", 2),
+            ("sale", 1), ("purchase price", 2), ("bill of sale", 3),
+        ]),
+        ("Partnership Agreement", [
+            ("partnership agreement", 3), ("partner", 1),
+            ("joint venture", 3), ("profit sharing", 2),
+            ("capital contribution", 2),
+        ]),
+        ("License Agreement", [
+            ("license agreement", 3), ("licensor", 2), ("licensee", 2),
+            ("royalt", 2), ("sublicense", 2), ("licensed rights", 2),
+        ]),
+    ]
+
+    best_type = "General Contract"
+    best_score = 0
+
+    for contract_type, keywords in contract_types:
+        score = 0
+        for keyword, weight in keywords:
+            count = text_lower.count(keyword)
+            if count > 0:
+                score += weight * min(count, 3)  # cap at 3 occurrences
+        if score > best_score:
+            best_score = score
+            best_type = contract_type
+
+    return best_type
 
 
 def categorize_risk(clause_text: str, clause_type: str) -> dict:
