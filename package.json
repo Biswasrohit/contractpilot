@@ -1,0 +1,23 @@
+{
+  "name": "contractpilot",
+  "version": "1.0.0",
+  "description": "**Sign smarter. Sign safer.**",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Biswasrohit/contractpilot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Biswasrohit/contractpilot/issues"
+  },
+  "homepage": "https://github.com/Biswasrohit/contractpilot#readme",
+  "dependencies": {
+    "puppeteer": "^24.37.5"
+  }
+}
