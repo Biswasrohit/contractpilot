@@ -67,8 +67,17 @@ def extract_text(file_bytes: bytes, filename: str, use_ocr: bool) -> tuple[str, 
 async def _run_analysis(review_id: str, pdf_text: str, pdf_bytes: bytes, user_id: str, ocr_used: bool, ocr_words: list = None):
     """Background task: run the full agent analysis pipeline."""
     try:
-        await run_contract_analysis(review_id, pdf_text, user_id, ocr_used, pdf_bytes, ocr_words or [])
-    except Exception as e:
+        await asyncio.wait_for(
+            run_contract_analysis(review_id, pdf_text, user_id, ocr_used, pdf_bytes, ocr_words or []),
+            timeout=300.0,
+        )
+    except asyncio.TimeoutError:
+        print(f"Analysis timed out for {review_id} (5-minute cap)")
+        try:
+            convex.mutation("reviews:updateStatus", {"id": review_id, "status": "failed"})
+        except Exception:
+            pass
+    except BaseException as e:
         import traceback
         print(f"Analysis failed for {review_id}: {e}")
         traceback.print_exc()

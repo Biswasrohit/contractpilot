@@ -118,7 +118,25 @@ async def _analyze_one_clause_throttled(
 ) -> dict:
     """Analyze a clause with semaphore throttling and incremental save."""
     async with sem:
-        result = await _analyze_one_clause(clause, contract_type, index)
+        try:
+            result = await asyncio.wait_for(
+                _analyze_one_clause(clause, contract_type, index),
+                timeout=120.0,
+            )
+        except asyncio.TimeoutError:
+            print(f"  Clause {index+1} timed out (120s)")
+            result = {
+                "clauseText": clause["text"][:2000],
+                "clauseType": clause["heading"],
+                "riskLevel": "medium",
+                "riskCategory": "operational",
+                "explanation": f"Analysis timed out for: {clause['heading']}",
+                "concern": "Could not complete analysis within time limit",
+                "suggestion": "Manual review recommended",
+                "k2Reasoning": "",
+                "parentHeading": clause.get("parentHeading"),
+                "subClauseIndex": clause.get("subClauseIndex"),
+            }
 
     # Merge position data
     if position:
