@@ -20,6 +20,7 @@ export default function Home() {
   const [ocrEnabled, setOcrEnabled] = useState(false);
   const [fileType, setFileType] = useState<string | null>(null);
   const [creditAdded, setCreditAdded] = useState(false);
+  const [creditError, setCreditError] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const addCredits = useMutation(api.credits.addCredits);
@@ -29,17 +30,22 @@ export default function Home() {
       searchParams.get("upgraded") === "true" &&
       isAuthenticated &&
       !creditAdded &&
-      !sessionStorage.getItem("credits_granted")
+      !sessionStorage.getItem("credits_granted") &&
+      !sessionStorage.getItem("credits_pending")
     ) {
-      setCreditAdded(true);
-      sessionStorage.setItem("credits_granted", "true");
+      sessionStorage.setItem("credits_pending", "true");
+      setCreditError(null);
       addCredits({ amount: 5 })
         .then(() => {
+          setCreditAdded(true);
+          sessionStorage.setItem("credits_granted", "true");
+          sessionStorage.removeItem("credits_pending");
           window.history.replaceState({}, "", "/");
         })
         .catch((err) => {
           console.error("Failed to add credits:", err);
-          sessionStorage.removeItem("credits_granted");
+          sessionStorage.removeItem("credits_pending");
+          setCreditError("Failed to add credits. Please try again.");
         });
     }
   }, [searchParams, isAuthenticated, creditAdded, addCredits]);
@@ -115,6 +121,24 @@ export default function Home() {
         {creditAdded && (
           <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-center text-sm font-medium">
             5 review credits added to your account!
+          </div>
+        )}
+
+        {creditError && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-400 text-center text-sm font-medium">
+            {creditError}
+            <button
+              onClick={() => {
+                setCreditError(null);
+                sessionStorage.removeItem("credits_granted");
+                sessionStorage.removeItem("credits_pending");
+                setCreditAdded(false);
+              }}
+              className="ml-3 px-3 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium hover:bg-red-200 dark:hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 active:scale-95"
+              style={{ transition: "transform 0.1s, background-color 0.2s" }}
+            >
+              Retry
+            </button>
           </div>
         )}
 
